@@ -1,0 +1,12 @@
+/.phpunit.cache/
+/.phpunit.result.cache
+/.idea/
+/.vscode/
+/composer.phar
+/vendor/
+phpunit.xml
+*.log
+.DS_Store
+Thumbs.db
+
+# Build release artifacts with production dependencies installed separately.
