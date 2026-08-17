@@ -4,9 +4,9 @@ Bastion Security WP is a read-only, defense-in-depth foundation for WordPress se
 
 ## Current scope
 
-This initial work unit provides immutable diagnostic values, a deterministic request-local registry, and a fail-open runner. It does not yet expose Site Health or REST integrations and performs no checks in production.
+The plugin adds four deterministic direct tests to WordPress Site Health: HTTPS/admin transport, dashboard file editing, file modifications and updates, and a runtime compatibility notice. Results are request-local, fail open per check, and provide evidence, meaning, ownership, and manual remediation without a guarantee. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation.
 
-No headers, login throttling, REST policy or inventory, file integrity, audit, alerts, settings UI, database writes, cron tasks, filesystem mutations, or cache are included.
+No public endpoint, menu, REST policy or inventory, enforcement, headers, login throttling, file integrity, audit, alerts, settings UI, database writes, cron tasks, filesystem mutations, logs, or cache are included. Access relies on WordPress's native Site Health administration surface.
 
 ## Compatibility target
 
@@ -29,7 +29,7 @@ The repository excludes `vendor/`. Build an installable release artifact in a cl
 
 ## Rollback
 
-Deactivate Bastion Security WP and remove its plugin directory. This foundation creates no external state, so no database, cron, cache, or filesystem cleanup is required.
+Deactivate Bastion Security WP to remove its four Site Health tests, then remove its plugin directory if desired. The plugin creates no external state, so no database, cron, cache, log, or filesystem cleanup is required.
 
 ## License
 
