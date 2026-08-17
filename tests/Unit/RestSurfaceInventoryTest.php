@@ -140,10 +140,14 @@ final class RestSurfaceInventoryTest extends TestCase
 
     public function testReaderAndPresenterFailuresStayInsideInventoryAndOtherChecksRun(): void
     {
-        $readerFailure = new RestSurfaceInventory(static fn (): never => throw new RuntimeException('secret-reader'));
+        $readerFailure = new RestSurfaceInventory(static function (): never {
+            throw new RuntimeException('secret-reader');
+        });
         $presenterFailure = new RestSurfaceInventory(
             static fn (): array => ['namespaces' => ['x/v1'], 'routes' => ['x/v1' => ['/x' => [['methods' => 'GET']]]]],
-            static fn (string $value): never => throw new RuntimeException('secret-presenter'),
+            static function (string $value): never {
+                throw new RuntimeException('secret-presenter');
+            },
         );
         $diagnostics = new SiteHealthDiagnostics(
             static fn (string $key): mixed => $key === 'disallow_file_edit',

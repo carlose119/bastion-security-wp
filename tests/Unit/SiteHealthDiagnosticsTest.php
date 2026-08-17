@@ -113,7 +113,9 @@ final class SiteHealthDiagnosticsTest extends TestCase
     {
         $diagnostics = new SiteHealthDiagnostics(
             fn (string $key): mixed => $this->values[$key],
-            static fn (string $value): never => throw new RuntimeException('secret-token'),
+            static function (string $value): never {
+                throw new RuntimeException('secret-token');
+            },
         );
 
         $result = $diagnostics->runtime();
