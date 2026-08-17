@@ -8,7 +8,7 @@ The plugin adds five deterministic direct tests to WordPress Site Health: HTTPS/
 
 The inventory exposes only registered namespaces, route patterns, and sorted unique HTTP methods. It reads only the required fields from an already initialized REST server's internal registry because the public route accessor applies filters and mutates route-options state; incompatible registry layouts are not assessed. It never initializes REST or invokes route callbacks. Output is escaped, capped at 100 deterministically sorted routes, and reports how many routes were omitted. Callback metadata, arguments, schemas, options, request data, credentials, paths, exceptions, and arbitrary configuration are never rendered.
 
-No public endpoint, menu, REST policy, enforcement, dispatch hook, headers, login throttling, file integrity, audit, alerts, settings UI, database writes, cron tasks, filesystem mutations, logs, or cache are included. Access relies on WordPress's native capability-protected Site Health administration surface. WooCommerce compatibility remains future matrix work and is not claimed without a real fixture.
+No public endpoint, menu, REST policy, enforcement, dispatch hook, headers, login throttling, file integrity, audit, alerts, settings UI, database writes, cron tasks, filesystem mutations, logs, or cache are included. Access relies on WordPress's native capability-protected Site Health administration surface.
 
 ## Compatibility target
 
@@ -26,7 +26,7 @@ composer install
 composer check
 ```
 
-CI runs the same validation, full PHPUnit suite, dependency audit, and PHP syntax checks on Ubuntu with PHP 8.1, 8.2, 8.3, and 8.4. This is a PHP compatibility matrix only; it does not execute WordPress or WooCommerce version matrices.
+CI runs the same validation, full PHPUnit suite, dependency audit, and PHP syntax checks on Ubuntu with PHP 8.1, 8.2, 8.3, and 8.4. Separate processes install WordPress, verify its schema, activate both plugins, and run assertions for PHP 8.4, WordPress 7.0.4, and WooCommerce 11.0.1; compatibility evidence remains pending until that hosted job passes.
 
 ## Build
 

@@ -61,3 +61,92 @@ jobs:
 
       - name: Check PHP syntax
         run: composer syntax
+
+  woocommerce-compatibility:
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4.7@sha256:39596f079862334be04f4231664862e55d4febe54309cc62f750f2297de85b06
+        env:
+          MARIADB_DATABASE: bastion_test
+          MARIADB_USER: bastion
+          MARIADB_PASSWORD: bastion
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          extensions: mysqli, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Run pinned WooCommerce integration
+        shell: bash
+        env:
+          WP_SHA256: f0885ad10c35ac87e70517bc5789275cd54ccac052222a58acfb7b9f870082b0
+          WC_SHA256: 88837ea0504544fdb835078d39c68c6c4abde00cdb4af8f67027255ee8ae494c
+        run: |
+          set -euo pipefail
+          fixture="$RUNNER_TEMP/bastion-wc-compat"
+          trap 'rm -rf -- "$fixture"' EXIT
+          rm -rf -- "$fixture"
+          mkdir -p "$fixture/downloads" "$fixture/site"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$fixture/downloads/wordpress.zip" \
+            https://downloads.wordpress.org/release/wordpress-7.0.4.zip
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$fixture/downloads/woocommerce.zip" \
+            https://github.com/woocommerce/woocommerce/releases/download/11.0.1/woocommerce.zip
+          echo "$WP_SHA256  $fixture/downloads/wordpress.zip" | sha256sum --check --strict
+          echo "$WC_SHA256  $fixture/downloads/woocommerce.zip" | sha256sum --check --strict
+          validate_archive() {
+            local archive="$1" root="$2"
+            zipinfo -1 "$archive" | awk -v root="$root" '
+              BEGIN { seen=0 }
+              {
+                seen=1
+                if ($0 == "" || $0 ~ /^\// || $0 ~ /\\/ || $0 ~ /\/\// ||
+                    $0 ~ /(^|\/)[A-Za-z]:/ || $0 ~ /(^|\/)\.\.?($|\/)/ ||
+                    !($0 == root "/" || index($0, root "/") == 1)) bad=1
+              }
+              END { exit (!seen || bad) }
+            ' || return 1
+            zipinfo -l "$archive" | awk '$1 ~ /^l/ { bad=1 } END { exit bad }' || return 1
+          }
+          validate_archive "$fixture/downloads/wordpress.zip" wordpress
+          validate_archive "$fixture/downloads/woocommerce.zip" woocommerce
+          unzip -q "$fixture/downloads/wordpress.zip" -d "$fixture/site"
+          unzip -q "$fixture/downloads/woocommerce.zip" -d "$fixture/site/wordpress/wp-content/plugins"
+          composer install --no-dev --classmap-authoritative --no-interaction --no-progress --no-scripts
+          mkdir "$fixture/site/wordpress/wp-content/plugins/bastion-security-wp"
+          cp -a bastion-security-wp.php composer.json composer.lock README.md src vendor \
+            "$fixture/site/wordpress/wp-content/plugins/bastion-security-wp/"
+          cp "$fixture/site/wordpress/wp-config-sample.php" "$fixture/site/wordpress/wp-config.php"
+          sed -i \
+            -e "s/database_name_here/bastion_test/" \
+            -e "s/username_here/bastion/" \
+            -e "s/password_here/bastion/" \
+            -e "s/localhost/127.0.0.1/" \
+            "$fixture/site/wordpress/wp-config.php"
+          php tests/Integration/FixtureLifecycle.php install "$fixture/site/wordpress"
+          php tests/Integration/FixtureLifecycle.php verify "$fixture/site/wordpress"
+          php tests/Integration/FixtureLifecycle.php activate "$fixture/site/wordpress"
+          result="$(php tests/Integration/WooCommerceRestInventory.php "$fixture/site/wordpress")"
+          printf '%s\n' "$result"
+          grep -Fxq 'BASTION_WC_COMPAT_OK: inventory assertions passed' <<< "$result"
+          rm -f "$fixture/site/wordpress/wp-config.php"
