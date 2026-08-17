@@ -48,9 +48,10 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_file_editor',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
+            'bastion_security_wp_rest_surface_inventory',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(5, array_unique(array_keys($tests['direct'])));
+        self::assertCount(6, array_unique(array_keys($tests['direct'])));
     }
 
     public function testResultsAreDeterministicAndUseSiteHealthShape(): void
@@ -63,8 +64,9 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_file_editor',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
+            'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'good', 'good'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'good', 'good', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);

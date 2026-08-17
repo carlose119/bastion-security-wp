@@ -11,11 +11,13 @@ final class SiteHealthDiagnostics
 {
     private Closure $observe;
     private Closure $escape;
+    private RestSurfaceInventory $restInventory;
 
-    public function __construct(?callable $observe = null, ?callable $escape = null)
+    public function __construct(?callable $observe = null, ?callable $escape = null, ?RestSurfaceInventory $restInventory = null)
     {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
+        $this->restInventory = $restInventory ?? new RestSurfaceInventory();
     }
 
     /** @param array<string, mixed> $tests
@@ -38,6 +40,10 @@ final class SiteHealthDiagnostics
         $tests['direct']['bastion_security_wp_runtime'] = [
             'label' => 'Bastion: Runtime compatibility notice',
             'test' => $this->runtime(...),
+        ];
+        $tests['direct']['bastion_security_wp_rest_surface_inventory'] = [
+            'label' => 'Bastion: REST surface inventory',
+            'test' => $this->restInventory->report(...),
         ];
 
         return $tests;
