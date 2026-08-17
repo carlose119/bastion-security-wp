@@ -108,7 +108,10 @@ foreach (['woocommerce/woocommerce.php', 'bastion-security-wp/bastion-security-w
     check(is_plugin_active($plugin), 'Required plugin is not active: ' . $plugin);
 }
 wp_set_current_user(0);
-wc_load_cart();
+WC()->initialize_session();
+WC()->initialize_cart();
+check(WC()->session instanceof WC_Session, 'The compatibility session was not initialized.');
+check(WC()->cart instanceof WC_Cart, 'The compatibility cart was not initialized.');
 check(WC()->cart->is_empty(), 'The compatibility cart was not initialized empty.');
 $server = rest_get_server();
 do_action('rest_api_init');

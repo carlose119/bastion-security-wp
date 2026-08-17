@@ -116,16 +116,7 @@ jobs:
           echo "$WC_SHA256  $fixture/downloads/woocommerce.zip" | sha256sum --check --strict
           validate_archive() {
             local archive="$1" root="$2"
-            zipinfo -1 "$archive" | awk -v root="$root" '
-              BEGIN { seen=0 }
-              {
-                seen=1
-                if ($0 == "" || $0 ~ /^\// || $0 ~ /\\/ || $0 ~ /\/\// ||
-                    $0 ~ /(^|\/)[A-Za-z]:/ || $0 ~ /(^|\/)\.\.?($|\/)/ ||
-                    !($0 == root "/" || index($0, root "/") == 1)) bad=1
-              }
-              END { exit (!seen || bad) }
-            ' || return 1
+            php tests/Integration/ArchiveValidator.php "$archive" "$root" || return 1
             zipinfo -l "$archive" | awk '$1 ~ /^l/ { bad=1 } END { exit bad }' || return 1
           }
           validate_archive "$fixture/downloads/wordpress.zip" wordpress
@@ -143,7 +134,9 @@ jobs:
             -e "s/password_here/bastion/" \
             -e "s/localhost/127.0.0.1/" \
             "$fixture/site/wordpress/wp-config.php"
-          php tests/Integration/FixtureLifecycle.php install "$fixture/site/wordpress"
+          install_result="$(php tests/Integration/InstallWordPress.php "$fixture/site/wordpress")"
+          printf '%s\n' "$install_result"
+          grep -Fxq 'BASTION_WP_INSTALL_OK: WordPress installed' <<< "$install_result"
           php tests/Integration/FixtureLifecycle.php verify "$fixture/site/wordpress"
           php tests/Integration/FixtureLifecycle.php activate "$fixture/site/wordpress"
           result="$(php tests/Integration/WooCommerceRestInventory.php "$fixture/site/wordpress")"

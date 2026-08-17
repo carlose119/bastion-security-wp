@@ -11,23 +11,13 @@ function check(bool $condition, string $message): void
 
 $mode = $argv[1] ?? '';
 $root = realpath($argv[2] ?? '');
-check(in_array($mode, ['install', 'verify', 'activate'], true), 'Invalid fixture lifecycle mode.');
+check(in_array($mode, ['verify', 'activate'], true), 'Invalid fixture lifecycle mode.');
 check($root !== false && is_file($root . '/wp-load.php'), 'Invalid WordPress fixture root.');
 $_SERVER['HTTP_HOST'] = 'bastion.test';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
 define('WP_USE_THEMES', false);
-if ($mode === 'install') {
-    define('WP_INSTALLING', true);
-}
 require $root . '/wp-load.php';
-
-if ($mode === 'install') {
-    check(! is_blog_installed(), 'Fixture database is not empty.');
-    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-    wp_install('Bastion compatibility', 'admin', 'admin@example.test', false, '', 'unused-password');
-    exit(0);
-}
 
 global $wpdb;
 check(is_blog_installed(), 'WordPress is not installed.');
