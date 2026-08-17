@@ -23,11 +23,23 @@ Run commands from this plugin directory:
 
 ```shell
 composer install
-composer validate --strict
-composer test
+composer check
 ```
 
-The repository excludes `vendor/`. Build an installable release artifact in a clean staging directory and run `composer install --no-dev --classmap-authoritative` there so runtime autoloading is included without development packages.
+CI runs the same validation, full PHPUnit suite, dependency audit, and PHP syntax checks on Ubuntu with PHP 8.1, 8.2, 8.3, and 8.4. This is a PHP compatibility matrix only; it does not execute WordPress or WooCommerce version matrices.
+
+## Build
+
+Build and verify the installable ZIP locally:
+
+```shell
+composer package
+composer package:verify
+```
+
+The artifact is written to `.build/bastion-security-wp.zip`, rooted at `bastion-security-wp/`. The explicit distribution contains the plugin entry point, `src/`, README, Composer metadata, and a production-only authoritative autoloader generated in disposable staging. It excludes tests, development dependencies, PHPUnit configuration, Git metadata, GitHub workflows, caches, and local tooling.
+
+Archive entries are sorted, use normalized `/` separators, fixed permissions, and a fixed 1980 timestamp. Identical bytes are expected with the same PHP, Composer, libzip, dependency lockfile, and source; ZIP compression implementations can differ across environments, so cross-toolchain byte identity is not claimed.
 
 ## Rollback
 

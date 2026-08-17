@@ -20,7 +20,16 @@
         }
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "syntax": "@php tools/check-syntax.php",
+        "check": [
+            "@composer validate --strict",
+            "@test",
+            "@composer audit",
+            "@syntax"
+        ],
+        "package": "@php tools/build.php",
+        "package:verify": "phpunit --filter PackagingTest"
     },
     "config": {
         "sort-packages": true

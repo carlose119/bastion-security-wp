@@ -4,9 +4,8 @@
 /.vscode/
 /composer.phar
 /vendor/
+/.build/
 phpunit.xml
 *.log
 .DS_Store
 Thumbs.db
-
-# Build release artifacts with production dependencies installed separately.
