@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BastionSecurityWP\Tests\Unit;
 
 use BastionSecurityWP\Bootstrap;
+use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\SiteHealthDiagnostics;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -54,6 +55,20 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertCount(6, array_unique(array_keys($tests['direct'])));
     }
 
+    public function testSharedReportListContainsExactlyFiveBastionDiagnosticsInStableOrder(): void
+    {
+        $results = $this->diagnostics()->reports();
+
+        self::assertCount(5, $results);
+        self::assertSame([
+            'bastion_security_wp_transport',
+            'bastion_security_wp_file_editor',
+            'bastion_security_wp_file_modifications',
+            'bastion_security_wp_runtime',
+            'bastion_security_wp_rest_surface_inventory',
+        ], array_column($results, 'test'));
+    }
+
     public function testResultsAreDeterministicAndUseSiteHealthShape(): void
     {
         $tests = $this->diagnostics()->register([])['direct'];
@@ -83,6 +98,29 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString('editor is available', $diagnostics->fileEditor()['description']);
         self::assertSame('recommended', $diagnostics->fileModifications()['status']);
         self::assertStringContainsString('prevent security updates', $diagnostics->fileModifications()['description']);
+    }
+
+    public function testFileEditorReportsExternalFalseConflictWithoutClaimingProtection(): void
+    {
+        $policy = new FileEditorPolicy(
+            static fn (): bool => true,
+            static fn (): bool => true,
+            static fn (): bool => false,
+            static fn (): array => ['defined' => true, 'value' => false],
+            static fn (): bool => true,
+        );
+        $diagnostics = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            fileEditorPolicy: $policy,
+        );
+
+        $result = $diagnostics->fileEditor();
+
+        self::assertSame('recommended', $result['status']);
+        self::assertStringContainsString('editor is available', $result['description']);
+        self::assertStringContainsString('defined outside Bastion', $result['description']);
+        self::assertStringContainsString('will not override or remove', $result['actions']);
     }
 
     public function testUnsupportedAndHostileRuntimeValuesAreNotCountedAsGoodOrReflected(): void

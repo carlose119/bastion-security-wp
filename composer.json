@@ -1,6 +1,6 @@
 {
     "name": "carloscarrillo/bastion-security-wp",
-    "description": "Read-only, defense-in-depth security posture diagnostics for WordPress.",
+    "description": "Defense-in-depth security diagnostics and reversible hardening tools for WordPress.",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "require": {

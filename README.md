@@ -1,14 +1,18 @@
 # Bastion Security WP
 
-Bastion Security WP is a read-only, defense-in-depth foundation for WordPress security posture diagnostics. It reports evidence; it does not make security changes and must never be treated as a guarantee of invulnerability.
+Bastion Security WP is a defense-in-depth foundation for WordPress security posture diagnostics with one narrowly scoped remediation tool. It reports evidence and can manage a reversible dashboard file-editor lock; it must never be treated as a guarantee of invulnerability.
 
 ## Current scope
 
-The plugin adds five deterministic direct tests to WordPress Site Health: HTTPS/admin transport, dashboard file editing, file modifications and updates, a runtime compatibility notice, and a read-only REST surface inventory. Results are request-local, fail open per check, and provide evidence without a guarantee. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation.
+The plugin adds five deterministic direct tests to WordPress Site Health: HTTPS/admin transport, dashboard file editing, file modifications and updates, a runtime compatibility notice, and a read-only REST surface inventory. The assessments remain read-only, request-local, and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation.
+
+Tools > Bastion Security provides a concise dashboard for the same five Bastion diagnostics in stable order, followed by the single remediation workflow. Each dashboard result shows its label, status, evidence, meaning, and recommended action. The page links to WordPress Site Health for the full native test suite instead of copying or replacing native tests. If the REST registry is not already available during the admin-page request, the inventory remains Not assessed and points users to Site Health; Bastion does not initialize or dispatch REST solely for the dashboard.
+
+On single-site installations, an administrator with `manage_options` can enable or disable a plugin-owned file-editor preference through a nonce-protected POST action. When enabled, Bastion defines `DISALLOW_FILE_EDIT` as `true` early in each request only if the constant is not already defined. Bastion writes only its own WordPress option; it never edits `wp-config.php` or any filesystem/configuration file. If another source defines `DISALLOW_FILE_EDIT`, Bastion preserves that value, reports its effective result, and does not claim it can override or roll it back. The tool is unavailable on multisite and performs no policy mutation there.
 
 The inventory exposes only registered namespaces, route patterns, and sorted unique HTTP methods. It reads only the required fields from an already initialized REST server's internal registry because the public route accessor applies filters and mutates route-options state; incompatible registry layouts are not assessed. It never initializes REST or invokes route callbacks. Output is escaped, capped at 100 deterministically sorted routes, and reports how many routes were omitted. Callback metadata, arguments, schemas, options, request data, credentials, paths, exceptions, and arbitrary configuration are never rendered.
 
-No public endpoint, menu, REST policy, enforcement, dispatch hook, headers, login throttling, file integrity, audit, alerts, settings UI, database writes, cron tasks, filesystem mutations, logs, or cache are included. Access relies on WordPress's native capability-protected Site Health administration surface.
+No public endpoint, REST policy, dispatch hook, headers, login throttling, file integrity, audit, alerts, cron tasks, filesystem mutations, logs, or cache are included. The only menu, enforcement, settings UI, and database write are the Tools page and its plugin-owned file-editor option described above. Access relies on WordPress's native administrative capability and nonce protections.
 
 ## Compatibility target
 
@@ -43,7 +47,7 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 
 ## Rollback
 
-Deactivate Bastion Security WP to remove its five Site Health tests, including the REST inventory, then remove its plugin directory if desired. The plugin creates no external state, so no database, cron, cache, log, or filesystem cleanup is required.
+Disable the Bastion file-editor lock from Tools > Bastion Security to remove its effect on the next request, then deactivate the plugin to remove its five Site Health tests and runtime enforcement. Deactivation alone also stops future enforcement, but the plugin-owned option remains in the WordPress database for a later reactivation. An externally defined `DISALLOW_FILE_EDIT` value is outside Bastion ownership and remains unchanged. Bastion creates no cron, cache, log, or filesystem state requiring cleanup.
 
 ## License
 

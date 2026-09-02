@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BastionSecurityWP;
 
+use BastionSecurityWP\Security\FileEditorPolicy;
 use Closure;
 use Throwable;
 
@@ -13,8 +14,12 @@ final class SiteHealthDiagnostics
     private Closure $escape;
     private RestSurfaceInventory $restInventory;
 
-    public function __construct(?callable $observe = null, ?callable $escape = null, ?RestSurfaceInventory $restInventory = null)
-    {
+    public function __construct(
+        ?callable $observe = null,
+        ?callable $escape = null,
+        ?RestSurfaceInventory $restInventory = null,
+        private readonly ?FileEditorPolicy $fileEditorPolicy = null,
+    ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
         $this->restInventory = $restInventory ?? new RestSurfaceInventory();
@@ -25,28 +30,47 @@ final class SiteHealthDiagnostics
      */
     public function register(array $tests): array
     {
-        $tests['direct']['bastion_security_wp_transport'] = [
-            'label' => 'Bastion: HTTPS and admin transport posture',
-            'test' => $this->transport(...),
-        ];
-        $tests['direct']['bastion_security_wp_file_editor'] = [
-            'label' => 'Bastion: File editor posture',
-            'test' => $this->fileEditor(...),
-        ];
-        $tests['direct']['bastion_security_wp_file_modifications'] = [
-            'label' => 'Bastion: File modification posture',
-            'test' => $this->fileModifications(...),
-        ];
-        $tests['direct']['bastion_security_wp_runtime'] = [
-            'label' => 'Bastion: Runtime compatibility notice',
-            'test' => $this->runtime(...),
-        ];
-        $tests['direct']['bastion_security_wp_rest_surface_inventory'] = [
-            'label' => 'Bastion: REST surface inventory',
-            'test' => $this->restInventory->report(...),
-        ];
+        foreach ($this->definitions() as $id => $definition) {
+            $tests['direct'][$id] = $definition;
+        }
 
         return $tests;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function reports(): array
+    {
+        return array_values(array_map(
+            static fn (array $definition): array => ($definition['test'])(),
+            $this->definitions(),
+        ));
+    }
+
+    /** @return array<string, array{label: string, test: callable(): array<string, mixed>}> */
+    private function definitions(): array
+    {
+        return [
+            'bastion_security_wp_transport' => [
+                'label' => 'Bastion: HTTPS and admin transport posture',
+                'test' => $this->transport(...),
+            ],
+            'bastion_security_wp_file_editor' => [
+                'label' => 'Bastion: File editor posture',
+                'test' => $this->fileEditor(...),
+            ],
+            'bastion_security_wp_file_modifications' => [
+                'label' => 'Bastion: File modification posture',
+                'test' => $this->fileModifications(...),
+            ],
+            'bastion_security_wp_runtime' => [
+                'label' => 'Bastion: Runtime compatibility notice',
+                'test' => $this->runtime(...),
+            ],
+            'bastion_security_wp_rest_surface_inventory' => [
+                'label' => 'Bastion: REST surface inventory',
+                'test' => $this->restInventory->report(...),
+            ],
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -72,14 +96,37 @@ final class SiteHealthDiagnostics
     public function fileEditor(): array
     {
         try {
-            $disabled = (bool) ($this->observe)('disallow_file_edit');
+            if ($this->fileEditorPolicy === null) {
+                $disabled = (bool) ($this->observe)('disallow_file_edit');
+                $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.');
+                $remediation = $disabled
+                    ? 'Remediation: No change is suggested for the file-editor lock.'
+                    : 'Remediation: Open Tools > Bastion Security to enable the plugin-managed lock, or define DISALLOW_FILE_EDIT externally.';
+            } else {
+                $state = $this->fileEditorPolicy->state();
+                $disabled = $state['effective_disabled'];
+
+                if (! $state['available']) {
+                    $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.') . ' Bastion management is unavailable on multisite.';
+                    $remediation = 'Remediation: A network administrator should manage the file-editor policy outside this Bastion tool.';
+                } elseif ($state['external_defined']) {
+                    $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.') . ' DISALLOW_FILE_EDIT is defined outside Bastion.';
+                    $remediation = 'Remediation: Review the external WordPress configuration. Bastion will not override or remove that value.';
+                } elseif ($state['plugin_managed']) {
+                    $evidence = 'Evidence: The built-in plugin and theme editor is disabled by the Bastion-managed lock.';
+                    $remediation = 'Remediation: Open Tools > Bastion Security to review or disable the Bastion preference.';
+                } else {
+                    $evidence = 'Evidence: The built-in plugin and theme editor is available and Bastion does not manage the lock.';
+                    $remediation = 'Remediation: Open Tools > Bastion Security to enable the plugin-managed lock.';
+                }
+            }
 
             return $this->result(
                 $disabled ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
                 'Bastion: File editor posture',
-                'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.'),
+                $evidence,
                 'Meaning: Disabling dashboard code editing reduces accidental or compromised-admin source changes.',
-                'Remediation: The site owner should set DISALLOW_FILE_EDIT to true in WordPress configuration.',
+                $remediation,
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: File editor posture');

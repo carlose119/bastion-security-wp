@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Bastion Security WP
- * Description:       Read-only, defense-in-depth security posture diagnostics for WordPress; never a claim of invulnerability.
+ * Description:       Defense-in-depth security diagnostics and reversible hardening tools for WordPress.
  * Version:           0.1.0
  * Requires at least: 6.8
  * Requires PHP:      8.1
