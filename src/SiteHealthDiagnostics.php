@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BastionSecurityWP;
 
 use BastionSecurityWP\Security\FileEditorPolicy;
+use BastionSecurityWP\Security\SecurityHeadersPolicy;
 use Closure;
 use Throwable;
 
@@ -19,6 +20,7 @@ final class SiteHealthDiagnostics
         ?callable $escape = null,
         ?RestSurfaceInventory $restInventory = null,
         private readonly ?FileEditorPolicy $fileEditorPolicy = null,
+        private readonly ?SecurityHeadersPolicy $securityHeadersPolicy = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
@@ -57,6 +59,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_file_editor' => [
                 'label' => 'Bastion: File editor posture',
                 'test' => $this->fileEditor(...),
+            ],
+            'bastion_security_wp_security_headers' => [
+                'label' => 'Bastion: Security header preset',
+                'test' => $this->securityHeaders(...),
             ],
             'bastion_security_wp_file_modifications' => [
                 'label' => 'Bastion: File modification posture',
@@ -130,6 +136,24 @@ final class SiteHealthDiagnostics
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: File editor posture');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function securityHeaders(): array
+    {
+        try {
+            $enabled = $this->securityHeadersPolicy?->isEnabled() ?? false;
+
+            return $this->result(
+                $enabled ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                'Bastion: Security header preset',
+                'Evidence: The per-site Bastion security-header preference is ' . ($enabled ? 'enabled.' : 'disabled.'),
+                'Meaning: A Good result only means the Bastion preference is enabled; it does not verify end-to-end delivery of either header.',
+                'Remediation: Open Tools > Bastion Security to review the preset, then inspect final response headers at the browser or CDN edge.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed('Bastion: Security header preset');
         }
     }
 
@@ -231,6 +255,7 @@ final class SiteHealthDiagnostics
             'test' => 'bastion_security_wp_' . match ($label) {
                 'Bastion: HTTPS and admin transport posture' => 'transport',
                 'Bastion: File editor posture' => 'file_editor',
+                'Bastion: Security header preset' => 'security_headers',
                 'Bastion: File modification posture' => 'file_modifications',
                 default => 'runtime',
             },

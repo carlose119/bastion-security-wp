@@ -18,6 +18,7 @@ final class SecurityDashboard
     public function __construct(
         private readonly SiteHealthDiagnostics $diagnostics,
         private readonly FileEditorAdmin $fileEditorAdmin,
+        private readonly SecurityHeadersAdmin $securityHeadersAdmin,
         ?callable $currentUserCan = null,
         ?callable $adminUrl = null,
         ?callable $sanitizeHtml = null,
@@ -50,6 +51,9 @@ final class SecurityDashboard
         $notice = isset($_GET['bastion_notice']) && is_string($_GET['bastion_notice'])
             ? $_GET['bastion_notice']
             : '';
+        $securityHeadersNotice = isset($_GET[SecurityHeadersAdmin::NOTICE_QUERY]) && is_string($_GET[SecurityHeadersAdmin::NOTICE_QUERY])
+            ? $_GET[SecurityHeadersAdmin::NOTICE_QUERY]
+            : '';
 
         echo '<div class="wrap bastion-security-dashboard"><h1>' . \esc_html__('Bastion Security', 'bastion-security-wp') . '</h1>';
         echo '<p>' . \esc_html__('Bastion reports its own focused security posture checks here.', 'bastion-security-wp') . ' ';
@@ -64,6 +68,7 @@ final class SecurityDashboard
 
         echo '</div>';
         $this->fileEditorAdmin->renderToolSection($notice);
+        $this->securityHeadersAdmin->renderToolSection($securityHeadersNotice);
         echo '</div>';
     }
 

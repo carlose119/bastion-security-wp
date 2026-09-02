@@ -6,6 +6,7 @@ namespace BastionSecurityWP\Tests\Unit;
 
 use BastionSecurityWP\Bootstrap;
 use BastionSecurityWP\Security\FileEditorPolicy;
+use BastionSecurityWP\Security\SecurityHeadersPolicy;
 use BastionSecurityWP\SiteHealthDiagnostics;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -47,22 +48,24 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'wordpress_core',
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
+            'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
             'bastion_security_wp_rest_surface_inventory',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(6, array_unique(array_keys($tests['direct'])));
+        self::assertCount(7, array_unique(array_keys($tests['direct'])));
     }
 
-    public function testSharedReportListContainsExactlyFiveBastionDiagnosticsInStableOrder(): void
+    public function testSharedReportListContainsExactlySixBastionDiagnosticsInStableOrder(): void
     {
         $results = $this->diagnostics()->reports();
 
-        self::assertCount(5, $results);
+        self::assertCount(6, $results);
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
+            'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
             'bastion_security_wp_rest_surface_inventory',
@@ -77,11 +80,12 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
+            'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
             'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'good', 'good', 'recommended'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'recommended', 'good', 'good', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);
@@ -121,6 +125,37 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString('editor is available', $result['description']);
         self::assertStringContainsString('defined outside Bastion', $result['description']);
         self::assertStringContainsString('will not override or remove', $result['actions']);
+    }
+
+    public function testSecurityHeaderDiagnosticReportsPreferenceOnlyWithoutClaimingDelivery(): void
+    {
+        $disabled = $this->diagnostics()->securityHeaders();
+        self::assertSame('recommended', $disabled['status']);
+        self::assertSame('Bastion: Security header preset', $disabled['label']);
+
+        $enabledPolicy = new SecurityHeadersPolicy(static fn (): bool => true, static fn (): bool => true);
+        $enabled = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            securityHeadersPolicy: $enabledPolicy,
+        );
+        $result = $enabled->securityHeaders();
+
+        self::assertSame('good', $result['status']);
+        self::assertStringContainsString('preference is enabled', $result['description']);
+        self::assertStringContainsString('does not verify end-to-end delivery', $result['description']);
+        self::assertStringContainsString('browser or CDN edge', $result['actions']);
+        self::assertStringContainsString('per-site', $result['description']);
+    }
+
+    public function testBootstrapRegistersOnlyWpHeadersAndNeverEmitsHeadersDirectly(): void
+    {
+        $source = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Bootstrap.php');
+        $policySource = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Security/SecurityHeadersPolicy.php');
+
+        self::assertStringContainsString("add_filter('wp_headers'", $source);
+        self::assertStringNotContainsString('header(', $source . $policySource);
+        self::assertStringNotContainsString('send_headers', $source . $policySource);
     }
 
     public function testUnsupportedAndHostileRuntimeValuesAreNotCountedAsGoodOrReflected(): void
@@ -191,6 +226,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
         return new SiteHealthDiagnostics(
             fn (string $key): mixed => $this->values[$key],
             static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            securityHeadersPolicy: new SecurityHeadersPolicy(static fn (): bool => false, static fn (): bool => true),
         );
     }
 }
