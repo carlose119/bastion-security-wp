@@ -5,22 +5,37 @@ Bastion Security WP provides focused WordPress security posture diagnostics and 
 ## Quick usage
 
 1. Open **Tools > Bastion Security** as an administrator with `manage_options`.
-2. Review the six Bastion diagnostics.
+2. Review the seven Bastion diagnostics, including cached pending plugin-update compatibility.
 3. Enable either the WordPress file-editor lock or the conservative HTTP security-header preset.
 4. For the header preset, verify the final response headers in browser developer tools and, when applicable, at the CDN edge.
 
 ## Current scope
 
-The plugin adds six deterministic direct tests to WordPress Site Health, in stable order:
+The plugin adds seven deterministic direct tests to WordPress Site Health, in stable order:
 
 1. HTTPS and admin transport posture.
 2. File editor posture.
 3. Security header preset preference.
 4. File modification and update posture.
 5. Runtime compatibility notice.
-6. Read-only REST surface inventory.
+6. Read-only pending plugin-update compatibility.
+7. Read-only REST surface inventory.
 
 The assessments remain request-local and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation. The Bastion dashboard presents the same results with Site Health-inspired, accessible `details`/`summary` markup and links to native WordPress Site Health for the full suite.
+
+## Plugin update compatibility boundaries
+
+The diagnostic reads WordPress's existing plugin-update site transient and installed plugin metadata. It performs no network request, update check, install, update, package retrieval, plugin callback, or cache/option write, and it provides no update button or action.
+
+Inventory is shown only to users who can update plugins. On multisite, the user must also be able to manage network plugins. Without those permissions, Bastion does not read or render plugin names or versions. The cache must be structurally complete, no more than 12 hours old, not implausibly future-dated, and consistent with installed versions; otherwise the result is **Not assessed**. Cache age describes freshness only and does not prove that a remote check succeeded.
+
+Each installed plugin with a cached pending update receives exactly one conservative classification based only on the target update's declarations:
+
+- **Declared requirements met:** valid WordPress and PHP minimums are present and met, and the publisher's tested-through WordPress version covers the current version. This does not guarantee compatibility or absence of conflicts.
+- **Blocked by declared requirements:** the current WordPress or PHP version is below a valid declared minimum. Every failed minimum is named.
+- **Compatibility unknown:** required metadata is missing or malformed, or the current WordPress version is newer than the publisher-tested-through value. Tested-through is not treated as a maximum.
+
+Installed plugin headers are not used as fallback target requirements. Results are deterministically sorted, limited to 50 displayed updates, and report total, shown, and omitted counts. Cached entries that do not match an installed plugin are ignored without exposing their identifiers.
 
 ## Reversible tools
 
@@ -100,7 +115,7 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 
 - **Header preset:** disable it under **Tools > Bastion Security**. Bastion immediately stops adding its two headers. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
 - **File-editor lock:** disable it on the same page to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
-- **Plugin:** deactivate Bastion to remove its six Site Health tests and future runtime enforcement. Plugin-owned options remain in the database for later reactivation.
+- **Plugin:** deactivate Bastion to remove its seven Site Health tests and future runtime enforcement. Plugin-owned options remain in the database for later reactivation.
 
 Bastion creates no cron, cache, log, or filesystem state requiring cleanup.
 

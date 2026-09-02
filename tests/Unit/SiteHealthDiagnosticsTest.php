@@ -51,23 +51,25 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
+            'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(7, array_unique(array_keys($tests['direct'])));
+        self::assertCount(8, array_unique(array_keys($tests['direct'])));
     }
 
-    public function testSharedReportListContainsExactlySixBastionDiagnosticsInStableOrder(): void
+    public function testSharedReportListContainsExactlySevenBastionDiagnosticsInStableOrder(): void
     {
         $results = $this->diagnostics()->reports();
 
-        self::assertCount(6, $results);
+        self::assertCount(7, $results);
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
+            'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
     }
@@ -83,9 +85,10 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
+            'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'recommended', 'good', 'good', 'recommended'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);

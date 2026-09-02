@@ -64,7 +64,7 @@ namespace BastionSecurityWP\Tests\Unit {
 
     final class SecurityDashboardTest extends TestCase
     {
-        public function testDashboardRendersSixBastionResultsNativeSiteHealthLinkAndTwoManagedTools(): void
+        public function testDashboardRendersSevenBastionResultsNativeSiteHealthLinkAndTwoManagedTools(): void
         {
             $dashboard = $this->dashboard();
 
@@ -72,14 +72,15 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard->render();
             $html = (string) ob_get_clean();
 
-            self::assertSame(6, substr_count($html, '<details class="bastion-diagnostic">'));
-            self::assertSame(6, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
+            self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(7, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
             self::assertSame(2, substr_count($html, '<section class="bastion-tools">'));
             self::assertStringContainsString('HTTPS and admin transport posture', $html);
             self::assertStringContainsString('File editor posture', $html);
             self::assertStringContainsString('Security header preset', $html);
             self::assertStringContainsString('File modification posture', $html);
             self::assertStringContainsString('Runtime compatibility notice', $html);
+            self::assertStringContainsString('Plugin update compatibility', $html);
             self::assertStringContainsString('REST surface inventory', $html);
             self::assertTrue(
                 strpos($html, 'HTTPS and admin transport posture')
@@ -87,7 +88,8 @@ namespace BastionSecurityWP\Tests\Unit {
                 && strpos($html, 'File editor posture') < strpos($html, 'Security header preset')
                 && strpos($html, 'Security header preset') < strpos($html, 'File modification posture')
                 && strpos($html, 'File modification posture') < strpos($html, 'Runtime compatibility notice')
-                && strpos($html, 'Runtime compatibility notice') < strpos($html, 'REST surface inventory'),
+                && strpos($html, 'Runtime compatibility notice') < strpos($html, 'Plugin update compatibility')
+                && strpos($html, 'Plugin update compatibility') < strpos($html, 'REST surface inventory'),
             );
             self::assertStringContainsString('site-health.php', $html);
             self::assertStringContainsString('WordPress Site Health', $html);
@@ -104,8 +106,8 @@ namespace BastionSecurityWP\Tests\Unit {
             $this->dashboard()->render();
             $html = (string) ob_get_clean();
 
-            self::assertSame(6, substr_count($html, '<details class="bastion-diagnostic">'));
-            self::assertSame(6, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
+            self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(7, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
             self::assertStringNotContainsString('<details class="bastion-diagnostic" open', $html);
             self::assertDoesNotMatchRegularExpression('/<details\b[^>]*\bopen\b/i', $html);
             self::assertStringContainsString('class="bastion-diagnostic-badge bastion-diagnostic-badge--good">Good</span>', $html);
@@ -199,7 +201,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard->render();
             $html = (string) ob_get_clean();
 
-            self::assertCount(12, $sanitizedFragments);
+            self::assertCount(14, $sanitizedFragments);
             self::assertStringNotContainsString('<script>', $html);
             self::assertStringContainsString('Not assessed', $html);
             self::assertStringContainsString('site-health.php', $html);

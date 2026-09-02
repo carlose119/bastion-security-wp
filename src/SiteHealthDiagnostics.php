@@ -14,6 +14,7 @@ final class SiteHealthDiagnostics
     private Closure $observe;
     private Closure $escape;
     private RestSurfaceInventory $restInventory;
+    private PluginUpdateCompatibility $pluginUpdateCompatibility;
 
     public function __construct(
         ?callable $observe = null,
@@ -21,10 +22,12 @@ final class SiteHealthDiagnostics
         ?RestSurfaceInventory $restInventory = null,
         private readonly ?FileEditorPolicy $fileEditorPolicy = null,
         private readonly ?SecurityHeadersPolicy $securityHeadersPolicy = null,
+        ?PluginUpdateCompatibility $pluginUpdateCompatibility = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
         $this->restInventory = $restInventory ?? new RestSurfaceInventory();
+        $this->pluginUpdateCompatibility = $pluginUpdateCompatibility ?? new PluginUpdateCompatibility();
     }
 
     /** @param array<string, mixed> $tests
@@ -71,6 +74,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_runtime' => [
                 'label' => 'Bastion: Runtime compatibility notice',
                 'test' => $this->runtime(...),
+            ],
+            'bastion_security_wp_plugin_update_compatibility' => [
+                'label' => 'Bastion: Plugin update compatibility',
+                'test' => $this->pluginUpdateCompatibility->report(...),
             ],
             'bastion_security_wp_rest_surface_inventory' => [
                 'label' => 'Bastion: REST surface inventory',
