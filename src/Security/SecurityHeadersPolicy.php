@@ -158,21 +158,35 @@ final class SecurityHeadersPolicy
 
     public function setGroupEnabled(string $group, bool $enabled): string
     {
-        if (! array_key_exists($group, self::GROUPS)) {
+        return $this->setGroupsEnabled([$group], $enabled);
+    }
+
+    /** @param list<string> $groups */
+    public function setGroupsEnabled(array $groups, bool $enabled): string
+    {
+        if ($groups === [] || ! array_is_list($groups)) {
+            return 'invalid_group';
+        }
+
+        foreach ($groups as $group) {
+            if (! is_string($group) || ! array_key_exists($group, self::GROUPS)) {
+                return 'invalid_group';
+            }
+        }
+
+        if (count($groups) !== count(array_unique($groups))) {
             return 'invalid_group';
         }
 
         $current = $this->enabledGroupIds();
         $currentSet = array_fill_keys($current, true);
 
-        if (isset($currentSet[$group]) === $enabled) {
-            return 'unchanged';
-        }
-
-        if ($enabled) {
-            $currentSet[$group] = true;
-        } else {
-            unset($currentSet[$group]);
+        foreach ($groups as $group) {
+            if ($enabled) {
+                $currentSet[$group] = true;
+            } else {
+                unset($currentSet[$group]);
+            }
         }
 
         $next = array_values(array_filter(
@@ -180,7 +194,20 @@ final class SecurityHeadersPolicy
             static fn (string $id): bool => isset($currentSet[$id]),
         ));
 
+        if ($next === $current) {
+            return 'unchanged';
+        }
+
         return ($this->writeGroupsOption)($next) ? 'updated' : 'write_failed';
+    }
+
+    public function disableAllGroups(): string
+    {
+        if ($this->enabledGroupIds() === []) {
+            return 'unchanged';
+        }
+
+        return ($this->writeGroupsOption)([]) ? 'updated' : 'write_failed';
     }
 
     /** @param array<string, string> $headers

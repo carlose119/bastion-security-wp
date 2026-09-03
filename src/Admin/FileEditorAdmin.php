@@ -75,7 +75,7 @@ final class FileEditorAdmin
     {
         $state = $this->policy->state();
 
-        echo '<section class="bastion-tools"><h2>' . \esc_html__('WordPress file editor lock', 'bastion-security-wp') . '</h2>';
+        echo '<section id="bastion-file-editor" class="bastion-tools"><h2>' . \esc_html__('WordPress file editor lock', 'bastion-security-wp') . '</h2>';
         $this->renderNotice($notice);
 
         if (! $state['available']) {
@@ -136,12 +136,19 @@ final class FileEditorAdmin
             return;
         }
 
-        echo '<div class="notice notice-info"><p>' . \esc_html__($messages[$notice], 'bastion-security-wp') . '</p></div>';
+        $severity = match ($notice) {
+            'updated' => 'success',
+            'unchanged' => 'info',
+            'unavailable', 'external_conflict' => 'warning',
+            default => 'error',
+        };
+
+        echo '<div class="notice notice-' . $severity . '"><p>' . \esc_html__($messages[$notice], 'bastion-security-wp') . '</p></div>';
     }
 
     private function redirect(string $notice): void
     {
-        $url = ($this->adminUrl)('tools.php?page=' . self::PAGE_SLUG . '&bastion_notice=' . rawurlencode($notice));
+        $url = ($this->adminUrl)('tools.php?page=' . self::PAGE_SLUG . '&tab=hardening&bastion_notice=' . rawurlencode($notice) . '#bastion-file-editor');
         ($this->safeRedirect)($url);
         ($this->terminate)();
     }

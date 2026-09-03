@@ -62,10 +62,26 @@ namespace BastionSecurityWP\Tests\Unit {
 
             $admin->handle(['command' => 'enable', '_wpnonce' => 'valid']);
             self::assertTrue($baseline);
-            self::assertStringContainsString('bastion_security_headers_notice=updated', $redirects[0]);
+            self::assertStringContainsString('bastion_notice=updated', $redirects[0]);
 
             $admin->handle(['command' => 'disable', '_wpnonce' => 'valid']);
             self::assertFalse($baseline);
+        }
+
+        public function testRedirectPreservesHeadersTabSharedNoticeAndFragment(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $this->admin($baseline, $groups, $redirects)->handle([
+                'command' => 'enable',
+                '_wpnonce' => 'valid',
+            ]);
+
+            self::assertSame(
+                'https://example.test/wp-admin/tools.php?page=bastion-security-wp&tab=headers&bastion_notice=updated#bastion-header-actions',
+                $redirects[0],
+            );
         }
 
         public function testGroupTargetUsesStrictAllowlistsAndTargetBoundNonce(): void
@@ -97,11 +113,14 @@ namespace BastionSecurityWP\Tests\Unit {
             $redirects = [];
 
             $this->admin($baseline, $groups, $redirects, authorized: false)->handle($this->groupPost('legacy_cross_domain', 'enable'));
+            $this->admin($baseline, $groups, $redirects, authorized: false)->handle($this->selectedPost('enable_selected', ['baseline']));
             $this->admin($baseline, $groups, $redirects, nonceValid: false)->handle($this->groupPost('legacy_cross_domain', 'enable'));
 
+            self::assertFalse($baseline);
             self::assertSame([], $groups);
             self::assertStringContainsString('forbidden', $redirects[0]);
-            self::assertStringContainsString('invalid_nonce', $redirects[1]);
+            self::assertStringContainsString('forbidden', $redirects[1]);
+            self::assertStringContainsString('invalid_nonce', $redirects[2]);
         }
 
         public function testAcknowledgementIsRequiredOnlyWhenEnablingHighImpactGroups(): void
@@ -190,6 +209,172 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('write_failed', $redirects[1]);
         }
 
+        public function testSelectedBatchRejectsMalformedEmptyUnknownAndDuplicateSelectionsBeforeWrites(): void
+        {
+            foreach ([null, 'baseline', [], ['unknown'], ['framing', 'framing'], ['framing' => 'framing'], [['framing']]] as $selection) {
+                $baseline = false;
+                $groups = [];
+                $redirects = [];
+                $admin = $this->admin($baseline, $groups, $redirects);
+                $post = $this->selectedPost('enable_selected', $selection);
+
+                $admin->handle($post);
+
+                self::assertFalse($baseline);
+                self::assertSame([], $groups);
+                self::assertStringContainsString('invalid_selection', $redirects[0]);
+            }
+        }
+
+        public function testSelectedBatchUsesFamilyNonceCanonicalizesAndRequiresOneAggregateAcknowledgement(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $verifiedActions = [];
+            $admin = $this->admin($baseline, $groups, $redirects, verifiedActions: $verifiedActions);
+
+            $admin->handle($this->selectedPost('enable_selected', ['resource_isolation', 'baseline', 'legacy_cross_domain']));
+            self::assertFalse($baseline);
+            self::assertSame([], $groups);
+            self::assertStringContainsString('acknowledgement_required', $redirects[0]);
+
+            $admin->handle($this->selectedPost('enable_selected', ['resource_isolation', 'baseline', 'legacy_cross_domain'], true));
+            self::assertTrue($baseline);
+            self::assertSame(['legacy_cross_domain', 'resource_isolation'], $groups);
+            self::assertSame([
+                SecurityHeadersAdmin::SELECTED_NONCE_ACTION,
+                SecurityHeadersAdmin::SELECTED_NONCE_ACTION,
+            ], $verifiedActions);
+        }
+
+        public function testSelectedBaselineAndLowImpactGroupDoNotRequireAcknowledgement(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects);
+
+            $admin->handle($this->selectedPost('enable_selected', ['legacy_cross_domain', 'baseline']));
+
+            self::assertTrue($baseline);
+            self::assertSame(['legacy_cross_domain'], $groups);
+            self::assertStringContainsString('updated', $redirects[0]);
+        }
+
+        public function testSelectedHstsPreflightBlocksEntireBatchBeforeAnyWrite(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects, hstsReady: false);
+
+            $admin->handle($this->selectedPost('enable_selected', ['baseline', 'legacy_cross_domain', 'hsts_trial'], true));
+
+            self::assertFalse($baseline);
+            self::assertSame([], $groups);
+            self::assertStringContainsString('hsts_not_ready', $redirects[0]);
+        }
+
+        public function testDisableSelectedBypassesAcknowledgementAndHstsReadiness(): void
+        {
+            $baseline = true;
+            $groups = ['framing', 'hsts_trial', 'resource_isolation'];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects, hstsReady: false);
+
+            $admin->handle($this->selectedPost('disable_selected', ['baseline', 'hsts_trial', 'framing']));
+
+            self::assertFalse($baseline);
+            self::assertSame(['resource_isolation'], $groups);
+            self::assertStringContainsString('updated', $redirects[0]);
+        }
+
+        public function testDisableAllUsesSeparateNonceGroupsFirstAndReportsPartialFailure(): void
+        {
+            $baseline = true;
+            $groups = ['framing'];
+            $redirects = [];
+            $verifiedActions = [];
+            $writeOrder = [];
+            $admin = $this->admin(
+                $baseline,
+                $groups,
+                $redirects,
+                baselineWriteSucceeds: false,
+                groupsWriteSucceeds: true,
+                verifiedActions: $verifiedActions,
+                writeOrder: $writeOrder,
+            );
+
+            $admin->handle([
+                'command' => 'disable_all',
+                '_wpnonce' => 'valid',
+            ]);
+
+            self::assertTrue($baseline);
+            self::assertSame([], $groups);
+            self::assertSame(['groups', 'baseline'], $writeOrder);
+            self::assertSame([SecurityHeadersAdmin::DISABLE_ALL_NONCE_ACTION], $verifiedActions);
+            self::assertStringContainsString('partial_failure', $redirects[0]);
+        }
+
+        public function testSelectedMixedWriteReportsPartialFailureAndResultingState(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin(
+                $baseline,
+                $groups,
+                $redirects,
+                baselineWriteSucceeds: false,
+                groupsWriteSucceeds: true,
+            );
+
+            $admin->handle($this->selectedPost('enable_selected', ['baseline', 'legacy_cross_domain']));
+
+            self::assertFalse($baseline);
+            self::assertSame(['legacy_cross_domain'], $groups);
+            self::assertStringContainsString('partial_failure', $redirects[0]);
+        }
+
+        public function testDisableAllReportsUnchangedAndCompleteWriteFailure(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $this->admin($baseline, $groups, $redirects)->handle(['command' => 'disable_all', '_wpnonce' => 'valid']);
+            self::assertStringContainsString('unchanged', $redirects[0]);
+
+            $baseline = true;
+            $groups = ['framing'];
+            $failing = $this->admin($baseline, $groups, $redirects, writeSucceeds: false);
+            $failing->handle(['command' => 'disable_all', '_wpnonce' => 'valid']);
+            self::assertTrue($baseline);
+            self::assertSame(['framing'], $groups);
+            self::assertStringContainsString('write_failed', $redirects[1]);
+        }
+
+        public function testSelectedAndDisableAllCommandsRequireTheirOwnOperationNonce(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $verifiedActions = [];
+            $admin = $this->admin($baseline, $groups, $redirects, nonceValid: false, verifiedActions: $verifiedActions);
+
+            $admin->handle($this->selectedPost('enable_selected', ['baseline']));
+            $admin->handle(['command' => 'disable_all', '_wpnonce' => 'invalid']);
+
+            self::assertSame([
+                SecurityHeadersAdmin::SELECTED_NONCE_ACTION,
+                SecurityHeadersAdmin::DISABLE_ALL_NONCE_ACTION,
+            ], $verifiedActions);
+            self::assertFalse($baseline);
+            self::assertSame([], $groups);
+        }
+
         public function testSectionRendersExactValuesStatesRisksCoverageFormsAndNotices(): void
         {
             $baseline = false;
@@ -219,7 +404,7 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('nonce-for-' . SecurityHeadersAdmin::NONCE_ACTION . ':group:framing', $html);
             self::assertStringContainsString('Enabled', $html);
             self::assertStringContainsString('Disabled', $html);
-            self::assertSame(5, substr_count($html, 'name="acknowledgement"'));
+            self::assertSame(6, substr_count($html, 'name="acknowledgement"'));
             self::assertStringContainsString('current request, home URL, and site URL must all use HTTPS', $html);
             self::assertStringContainsString('browsers may retain the 24-hour policy until it expires', $html);
             self::assertStringContainsString('safe-intent policy set', $html);
@@ -246,6 +431,60 @@ namespace BastionSecurityWP\Tests\Unit {
                 'safe intent rather than byte parity',
             ] as $omissionDisclosure) {
                 self::assertStringContainsString($omissionDisclosure, $visibleText);
+            }
+        }
+
+        public function testSectionUsesAccessibleGroupedBatchControlsWithoutEnableAllOrJavaScript(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            ob_start();
+            $this->admin($baseline, $groups, $redirects)->renderToolSection();
+            $html = (string) ob_get_clean();
+
+            self::assertStringContainsString('<fieldset', $html);
+            foreach ([
+                'Conservative baseline',
+                'Compatibility restrictions',
+                'Transport/content upgrade',
+                'Cross-origin isolation',
+            ] as $legend) {
+                self::assertStringContainsString('<legend>' . $legend . '</legend>', $html);
+            }
+            self::assertStringContainsString('name="groups[]" value="baseline"', $html);
+            self::assertSame(8, substr_count($html, 'name="groups[]"'));
+            self::assertStringContainsString('name="command" value="enable_selected"', $html);
+            self::assertStringContainsString('name="command" value="disable_selected"', $html);
+            self::assertStringContainsString('name="command" value="disable_all"', $html);
+            self::assertStringContainsString('name="acknowledgement" value="1"', $html);
+            self::assertStringNotContainsString('Enable all', $html);
+            self::assertStringNotContainsString('<script', $html);
+            self::assertStringContainsString('@media (max-width: 782px)', $html);
+            self::assertStringContainsString('position: sticky', $html);
+        }
+
+        public function testHeaderNoticesUseAccurateNativeSeverities(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects);
+
+            foreach ([
+                'updated' => 'success',
+                'unchanged' => 'info',
+                'acknowledgement_required' => 'warning',
+                'hsts_not_ready' => 'warning',
+                'partial_failure' => 'warning',
+                'invalid_selection' => 'error',
+                'forbidden' => 'error',
+                'write_failed' => 'error',
+            ] as $notice => $severity) {
+                ob_start();
+                $admin->renderToolSection($notice);
+                $html = (string) ob_get_clean();
+                self::assertStringContainsString('notice notice-' . $severity, $html, $notice);
             }
         }
 
@@ -294,6 +533,21 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringNotContainsString('<code>X-Content-Type-Options: nosniff</code>', $source);
         }
 
+        /** @return array<string, mixed> */
+        private function selectedPost(string $command, mixed $selection, bool $acknowledge = false): array
+        {
+            $post = [
+                'command' => $command,
+                'groups' => $selection,
+                '_wpnonce' => 'valid',
+            ];
+            if ($acknowledge) {
+                $post['acknowledgement'] = '1';
+            }
+
+            return $post;
+        }
+
         /** @return array<string, string> */
         private function groupPost(string $group, string $command, bool $acknowledge = false): array
         {
@@ -323,27 +577,34 @@ namespace BastionSecurityWP\Tests\Unit {
             bool $writeSucceeds = true,
             bool $hstsReady = true,
             array &$verifiedActions = [],
+            ?bool $baselineWriteSucceeds = null,
+            ?bool $groupsWriteSucceeds = null,
+            array &$writeOrder = [],
         ): SecurityHeadersAdmin {
+            $baselineWriteSucceeds ??= $writeSucceeds;
+            $groupsWriteSucceeds ??= $writeSucceeds;
             $policy = new SecurityHeadersPolicy(
                 static function () use (&$baseline): bool {
                     return $baseline;
                 },
-                static function (bool $enabled) use (&$baseline, $writeSucceeds): bool {
-                    if ($writeSucceeds) {
+                static function (bool $enabled) use (&$baseline, $baselineWriteSucceeds, &$writeOrder): bool {
+                    $writeOrder[] = 'baseline';
+                    if ($baselineWriteSucceeds) {
                         $baseline = $enabled;
                     }
 
-                    return $writeSucceeds;
+                    return $baselineWriteSucceeds;
                 },
                 static function () use (&$groups): array {
                     return $groups;
                 },
-                static function (array $enabledGroups) use (&$groups, $writeSucceeds): bool {
-                    if ($writeSucceeds) {
+                static function (array $enabledGroups) use (&$groups, $groupsWriteSucceeds, &$writeOrder): bool {
+                    $writeOrder[] = 'groups';
+                    if ($groupsWriteSucceeds) {
                         $groups = $enabledGroups;
                     }
 
-                    return $writeSucceeds;
+                    return $groupsWriteSucceeds;
                 },
                 static fn (): bool => true,
             );

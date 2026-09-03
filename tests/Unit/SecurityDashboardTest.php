@@ -64,7 +64,73 @@ namespace BastionSecurityWP\Tests\Unit {
 
     final class SecurityDashboardTest extends TestCase
     {
-        public function testDashboardRendersSevenBastionResultsNativeSiteHealthLinkAndTwoManagedTools(): void
+        protected function tearDown(): void
+        {
+            unset($_GET['tab'], $_GET['bastion_notice']);
+        }
+
+        public function testTabsUseNativeMarkupAndOnlyRenderTheActivePanel(): void
+        {
+            $overview = $this->renderTab('overview');
+            self::assertSame(3, substr_count($overview, '<a class="nav-tab'));
+            self::assertStringContainsString('class="nav-tab-wrapper" aria-label="Bastion Security sections"', $overview);
+            self::assertStringContainsString('tab=overview', $overview);
+            self::assertStringContainsString('tab=hardening', $overview);
+            self::assertStringContainsString('tab=headers', $overview);
+            self::assertMatchesRegularExpression('/<a class="nav-tab nav-tab-active"[^>]+aria-current="page">/', $overview);
+            self::assertSame(7, substr_count($overview, '<details class="bastion-diagnostic">'));
+            self::assertStringNotContainsString('WordPress file editor lock', $overview);
+            self::assertStringNotContainsString('HTTP security header preset', $overview);
+
+            $hardening = $this->renderTab('hardening');
+            self::assertStringContainsString('WordPress file editor lock', $hardening);
+            self::assertStringNotContainsString('<summary class="bastion-diagnostic-summary">', $hardening);
+            self::assertStringNotContainsString('HTTP security header preset', $hardening);
+
+            $headers = $this->renderTab('headers');
+            self::assertStringContainsString('HTTP security header policies', $headers);
+            self::assertStringNotContainsString('<summary class="bastion-diagnostic-summary">', $headers);
+            self::assertStringNotContainsString('WordPress file editor lock', $headers);
+        }
+
+        public function testUnknownAndMalformedTabsFallBackToOverview(): void
+        {
+            self::assertSame(7, substr_count($this->renderTab('unknown'), '<details class="bastion-diagnostic">'));
+            $_GET['tab'] = ['headers'];
+            ob_start();
+            $this->dashboard()->render();
+            $html = (string) ob_get_clean();
+            self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertStringNotContainsString('HTTP security header preset', $html);
+        }
+
+        public function testOverviewRendersSummaryCardsAndNativeSiteHealthLink(): void
+        {
+            $html = $this->renderTab('overview');
+
+            self::assertStringContainsString('Total diagnostics', $html);
+            self::assertStringContainsString('Good', $html);
+            self::assertStringContainsString('Needs attention', $html);
+            self::assertStringContainsString('<span>Total diagnostics</span><strong>7</strong>', $html);
+            self::assertStringContainsString('<span>Good</span><strong>3</strong>', $html);
+            self::assertStringContainsString('<span>Needs attention</span><strong>4</strong>', $html);
+            self::assertStringContainsString('site-health.php', $html);
+            self::assertStringNotContainsString('Not assessed count', $html);
+        }
+
+        public function testNoticesRenderOnlyOnTheirRelevantTabsWithNativeSeverity(): void
+        {
+            $_GET['bastion_notice'] = 'updated';
+            self::assertStringNotContainsString('notice notice-success', $this->renderTab('overview'));
+            self::assertStringContainsString('notice notice-success', $this->renderTab('hardening'));
+            self::assertStringContainsString('notice notice-success', $this->renderTab('headers'));
+
+            $_GET['bastion_notice'] = 'partial_failure';
+            self::assertStringContainsString('notice notice-warning', $this->renderTab('headers'));
+            self::assertStringNotContainsString('partial', $this->renderTab('hardening'));
+        }
+
+        public function testDashboardRendersSevenBastionResultsAndNativeSiteHealthLink(): void
         {
             $dashboard = $this->dashboard();
 
@@ -74,7 +140,6 @@ namespace BastionSecurityWP\Tests\Unit {
 
             self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
             self::assertSame(7, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
-            self::assertSame(2, substr_count($html, '<section class="bastion-tools">'));
             self::assertStringContainsString('HTTPS and admin transport posture', $html);
             self::assertStringContainsString('File editor posture', $html);
             self::assertStringContainsString('Security header preset', $html);
@@ -93,12 +158,8 @@ namespace BastionSecurityWP\Tests\Unit {
             );
             self::assertStringContainsString('site-health.php', $html);
             self::assertStringContainsString('WordPress Site Health', $html);
-            self::assertStringContainsString('WordPress file editor lock', $html);
-            self::assertStringContainsString('HTTP security header preset', $html);
-            self::assertTrue(strpos($html, 'WordPress file editor lock') < strpos($html, 'HTTP security header preset'));
-            self::assertSame(9, substr_count($html, 'name="command" value="enable"'));
-            self::assertStringContainsString('X-Frame-Options: SAMEORIGIN', $html);
-            self::assertStringContainsString('Strict-Transport-Security: max-age=86400', $html);
+            self::assertStringNotContainsString('WordPress file editor lock', $html);
+            self::assertStringNotContainsString('HTTP security header policies', $html);
             self::assertStringNotContainsString('wordpress_core', $html);
         }
 
@@ -143,6 +204,7 @@ namespace BastionSecurityWP\Tests\Unit {
 
         public function testManagedToolRendersDisableCommandWhenPreferenceIsEnabled(): void
         {
+            $_GET['tab'] = 'hardening';
             ob_start();
             $this->dashboard(optionEnabled: true)->render();
             $html = (string) ob_get_clean();
@@ -153,13 +215,13 @@ namespace BastionSecurityWP\Tests\Unit {
 
         public function testExternalOwnershipAndMultisiteRemainConservative(): void
         {
+            $_GET['tab'] = 'hardening';
             ob_start();
             $this->dashboard(externalDefined: true)->render();
             $externalHtml = (string) ob_get_clean();
 
             self::assertStringContainsString('defined outside Bastion', $externalHtml);
             self::assertStringNotContainsString('Clear Bastion preference', $externalHtml);
-            self::assertStringContainsString('Enable security header preset', $externalHtml);
 
             ob_start();
             $this->dashboard(optionEnabled: true, externalDefined: true)->render();
@@ -167,15 +229,12 @@ namespace BastionSecurityWP\Tests\Unit {
 
             self::assertStringContainsString('Clear Bastion preference', $stalePreferenceHtml);
             self::assertStringContainsString('name="command" value="disable"', $stalePreferenceHtml);
-            self::assertStringContainsString('Enable security header preset', $stalePreferenceHtml);
 
             ob_start();
             $this->dashboard(multisite: true)->render();
             $multisiteHtml = (string) ob_get_clean();
 
             self::assertStringContainsString('unavailable on multisite', $multisiteHtml);
-            self::assertStringContainsString('per-site preference', $multisiteHtml);
-            self::assertStringContainsString('Enable security header preset', $multisiteHtml);
             self::assertStringNotContainsString('Enable Bastion lock', $multisiteHtml);
         }
 
@@ -207,6 +266,15 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringNotContainsString('<script>', $html);
             self::assertStringContainsString('Not assessed', $html);
             self::assertStringContainsString('site-health.php', $html);
+        }
+
+        private function renderTab(string $tab): string
+        {
+            $_GET['tab'] = $tab;
+            ob_start();
+            $this->dashboard()->render();
+
+            return (string) ob_get_clean();
         }
 
         private function dashboard(

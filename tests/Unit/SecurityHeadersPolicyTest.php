@@ -149,6 +149,86 @@ final class SecurityHeadersPolicyTest extends TestCase
         ], $writes);
     }
 
+    public function testBatchGroupWritesAreCanonicalSingleWriteAndIdempotent(): void
+    {
+        $stored = ['framing'];
+        $writes = [];
+        $policy = new SecurityHeadersPolicy(
+            static fn (): bool => false,
+            static fn (): bool => true,
+            static function () use (&$stored): array {
+                return $stored;
+            },
+            static function (array $groups) use (&$stored, &$writes): bool {
+                $writes[] = $groups;
+                $stored = $groups;
+
+                return true;
+            },
+        );
+
+        self::assertSame('updated', $policy->setGroupsEnabled(['resource_isolation', 'browser_capabilities'], true));
+        self::assertSame(['framing', 'browser_capabilities', 'resource_isolation'], $stored);
+        self::assertSame('unchanged', $policy->setGroupsEnabled(['browser_capabilities', 'resource_isolation'], true));
+        self::assertSame('updated', $policy->setGroupsEnabled(['resource_isolation', 'framing'], false));
+        self::assertSame(['browser_capabilities'], $stored);
+        self::assertSame([
+            ['framing', 'browser_capabilities', 'resource_isolation'],
+            ['browser_capabilities'],
+        ], $writes);
+    }
+
+    public function testBatchGroupWritesRejectInvalidSelectionsBeforeWriting(): void
+    {
+        $writes = 0;
+        $policy = new SecurityHeadersPolicy(
+            static fn (): bool => false,
+            static fn (): bool => true,
+            static fn (): array => [],
+            static function () use (&$writes): bool {
+                ++$writes;
+
+                return true;
+            },
+        );
+
+        self::assertSame('invalid_group', $policy->setGroupsEnabled([], true));
+        self::assertSame('invalid_group', $policy->setGroupsEnabled(['unknown'], true));
+        self::assertSame('invalid_group', $policy->setGroupsEnabled(['framing', 'framing'], true));
+        self::assertSame(0, $writes);
+    }
+
+    public function testDisableAllGroupsUsesOneWriteAndReportsUnchangedOrFailure(): void
+    {
+        $stored = ['framing', 'hsts_trial'];
+        $writeSucceeds = true;
+        $writes = [];
+        $policy = new SecurityHeadersPolicy(
+            static fn (): bool => true,
+            static fn (): bool => true,
+            static function () use (&$stored): array {
+                return $stored;
+            },
+            static function (array $groups) use (&$stored, &$writeSucceeds, &$writes): bool {
+                $writes[] = $groups;
+                if ($writeSucceeds) {
+                    $stored = $groups;
+                }
+
+                return $writeSucceeds;
+            },
+        );
+
+        self::assertSame('updated', $policy->disableAllGroups());
+        self::assertSame([], $stored);
+        self::assertSame('unchanged', $policy->disableAllGroups());
+        $stored = ['framing'];
+        $writeSucceeds = false;
+        self::assertSame('write_failed', $policy->disableAllGroups());
+        self::assertSame(['framing'], $stored);
+        self::assertSame([[], []], $writes);
+    }
+
     public function testApplyingPolicyIsIdempotent(): void
     {
         $policy = $this->policy(true, array_keys(self::GROUP_HEADERS));
@@ -231,6 +311,15 @@ final class SecurityHeadersPolicyTest extends TestCase
         self::assertStringContainsString('CDN edge', $readme);
         self::assertStringContainsString('Access-Control-Allow-Origin', $readme);
         self::assertStringContainsString('reporting endpoint', $readme);
+        self::assertStringContainsString('Quick navigation', $readme);
+        self::assertStringContainsString('Enable selected', $readme);
+        self::assertStringContainsString('Disable selected', $readme);
+        self::assertStringContainsString('aggregate acknowledgement', $readme);
+        self::assertStringContainsString('all-or-nothing preflight', $readme);
+        self::assertStringContainsString('Disable all Bastion headers', $readme);
+        self::assertStringContainsString('partial failure', $readme);
+        self::assertStringContainsString('no enable-all action', $readme);
+        self::assertStringContainsString('Individual baseline and group controls', $readme);
     }
 
     private function policy(bool $baseline, mixed $groups = [], bool $https = true): SecurityHeadersPolicy

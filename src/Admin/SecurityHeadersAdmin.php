@@ -11,8 +11,10 @@ use Throwable;
 final class SecurityHeadersAdmin
 {
     public const NONCE_ACTION = 'bastion_security_wp_security_headers';
+    public const SELECTED_NONCE_ACTION = 'bastion_security_wp_security_headers_selected';
+    public const DISABLE_ALL_NONCE_ACTION = 'bastion_security_wp_security_headers_disable_all';
     public const POST_ACTION = 'bastion_security_wp_security_headers';
-    public const NOTICE_QUERY = 'bastion_security_headers_notice';
+    public const NOTICE_QUERY = 'bastion_notice';
     private const CAPABILITY = 'manage_options';
 
     /** @var list<string> */
@@ -23,6 +25,14 @@ final class SecurityHeadersAdmin
         'hsts_trial',
         'opener_isolation',
         'resource_isolation',
+    ];
+
+    /** @var array<string, list<string>> */
+    private const POLICY_SECTIONS = [
+        'Conservative baseline' => ['baseline'],
+        'Compatibility restrictions' => ['framing', 'browser_capabilities', 'legacy_cross_domain'],
+        'Transport/content upgrade' => ['mixed_content_upgrade', 'hsts_trial'],
+        'Cross-origin isolation' => ['opener_isolation', 'resource_isolation'],
     ];
 
     private Closure $currentUserCan;
@@ -62,8 +72,28 @@ final class SecurityHeadersAdmin
 
         $command = $post['command'] ?? null;
 
-        if (! is_string($command) || ! in_array($command, ['enable', 'disable'], true)) {
+        if (! is_string($command) || ! in_array($command, ['enable', 'disable', 'enable_selected', 'disable_selected', 'disable_all'], true)) {
             $this->redirect('invalid_command');
+
+            return;
+        }
+
+        if (in_array($command, ['enable_selected', 'disable_selected'], true)) {
+            $this->handleSelected($post, $command === 'enable_selected');
+
+            return;
+        }
+
+        if ($command === 'disable_all') {
+            if (! $this->hasValidNonce($post, self::DISABLE_ALL_NONCE_ACTION)) {
+                $this->redirect('invalid_nonce');
+
+                return;
+            }
+
+            $groupsResult = $this->policy->disableAllGroups();
+            $baselineResult = $this->policy->setEnabled(false);
+            $this->redirect($this->combineResults([$groupsResult, $baselineResult]));
 
             return;
         }
@@ -91,9 +121,7 @@ final class SecurityHeadersAdmin
             $nonceAction = self::NONCE_ACTION . ':group:' . $group;
         }
 
-        $nonce = $post['_wpnonce'] ?? null;
-
-        if (! is_string($nonce) || ! ($this->verifyNonce)($nonce, $nonceAction)) {
+        if (! $this->hasValidNonce($post, $nonceAction)) {
             $this->redirect('invalid_nonce');
 
             return;
@@ -129,31 +157,27 @@ final class SecurityHeadersAdmin
 
     public function renderToolSection(string $notice = ''): void
     {
-        $enabled = $this->policy->isEnabled();
+        $baselineEnabled = $this->policy->isEnabled();
+        $states = $this->policy->groupStates();
 
-        echo '<section class="bastion-tools"><h2>' . \esc_html__('HTTP security header preset', 'bastion-security-wp') . '</h2>';
+        echo '<section id="bastion-header-actions" class="bastion-tools bastion-header-tool"><h2>' . \esc_html__('HTTP security header policies', 'bastion-security-wp') . '</h2>';
         $this->renderNotice($notice);
-        echo '<p>' . \esc_html__('Start safely: enable the conservative baseline, verify final headers at the browser or CDN edge, then enable and validate optional groups one at a time.', 'bastion-security-wp') . '</p>';
-        echo '<h3>' . \esc_html__('Conservative baseline', 'bastion-security-wp') . '</h3>';
-        echo '<p>' . \esc_html__('This independent per-site baseline uses WordPress to add exactly:', 'bastion-security-wp') . '</p>';
-        echo '<ul><li><code>' . \esc_html('X-Content-Type-Options') . ': ' . \esc_html('nosniff') . '</code></li>';
-        echo '<li><code>' . \esc_html('Referrer-Policy') . ': ' . \esc_html('strict-origin-when-cross-origin') . '</code></li></ul>';
-        echo '<p><strong>' . \esc_html__('Status:', 'bastion-security-wp') . '</strong> ' . ($enabled ? \esc_html__('Enabled', 'bastion-security-wp') : \esc_html__('Disabled', 'bastion-security-wp')) . '</p>';
-        $this->renderForm(
-            'baseline',
-            null,
-            $enabled ? 'disable' : 'enable',
-            $enabled
-                ? \esc_html__('Disable security header preset', 'bastion-security-wp')
-                : \esc_html__('Enable security header preset', 'bastion-security-wp'),
-            false,
-        );
+        echo '<p>' . \esc_html__('Choose only the policies you intend to change, review their exact values and risks, then apply one selected action.', 'bastion-security-wp') . '</p>';
+        echo '<div class="notice notice-warning inline"><p><strong>' . \esc_html__('High-impact policies can break embedding, browser features, resources, transport, or', 'bastion-security-wp') . ' ' . \esc_html('cross-origin') . ' ' . \esc_html__('workflows.', 'bastion-security-wp') . '</strong> ' . \esc_html__('Enabling any high-impact selection requires the aggregate acknowledgement below.', 'bastion-security-wp') . '</p></div>';
+        $this->renderBatchForm($baselineEnabled, $states);
 
-        echo '<h3>' . \esc_html__('Optional policy groups', 'bastion-security-wp') . '</h3>';
-        echo '<p>' . \esc_html__('All optional groups start disabled as per-site preferences and work independently of the baseline. This is a safe-intent policy set inspired by a public reference, not byte-for-byte parity with it.', 'bastion-security-wp') . '</p>';
-        echo '<div class="bastion-header-omissions">';
-        echo '<h4>' . \esc_html__('Intentional policy omissions', 'bastion-security-wp') . '</h4>';
-        echo '<p>' . \esc_html__('Bastion follows safe intent rather than byte parity with the reference plugin.', 'bastion-security-wp') . '</p>';
+        echo '<h3>' . \esc_html__('Individual controls', 'bastion-security-wp') . '</h3>';
+        echo '<p>' . \esc_html__('Use these controls when you want to change and verify one policy at a time.', 'bastion-security-wp') . '</p>';
+        $this->renderIndividualBaseline($baselineEnabled);
+
+        foreach (SecurityHeadersPolicy::groupDefinitions() as $group => $definition) {
+            $this->renderIndividualGroup($group, $definition, $states[$group]);
+        }
+
+        echo '<div class="bastion-header-omissions"><h3>' . \esc_html__('Coverage and intentional omissions', 'bastion-security-wp') . '</h3>';
+        echo '<p>' . \esc_html__('This is a safe-intent policy set, not byte-for-byte parity with the reference plugin. Bastion follows safe intent rather than byte parity.', 'bastion-security-wp') . '</p>';
+        echo '<p>' . \esc_html__('Bastion only adds missing header names on eligible front-end responses. Existing names are matched case-insensitively; external spelling, values, and order remain unchanged.', 'bastion-security-wp') . '</p>';
+        echo '<p>' . \esc_html__('Coverage is limited to the', 'bastion-security-wp') . ' <code>' . \esc_html('wp_headers') . '</code> ' . \esc_html__('path used by standard front-end responses. Verify wp-admin, wp-login, REST, redirects, static files, cache responses, and every CDN or proxy edge separately.', 'bastion-security-wp') . '</p>';
         echo '<ul>';
         echo '<li>' . \esc_html__('No global', 'bastion-security-wp') . ' <code>' . \esc_html('Access-Control-Allow-*') . '</code> ' . \esc_html__('headers without an explicit allowed-origin contract.', 'bastion-security-wp') . '</li>';
         echo '<li>' . \esc_html__('No COOP', 'bastion-security-wp') . ' <code>' . \esc_html('unsafe-none') . '</code> ' . \esc_html__('or CORP', 'bastion-security-wp') . ' <code>' . \esc_html('cross-origin') . '</code> ' . \esc_html__('values because they add no meaningful isolation.', 'bastion-security-wp') . '</li>';
@@ -161,32 +185,184 @@ final class SecurityHeadersAdmin
         echo '<li>' . \esc_html__('No CSP', 'bastion-security-wp') . ' <code>' . \esc_html('Report-Only') . '</code> ' . \esc_html__('policy without a configured reporting endpoint.', 'bastion-security-wp') . '</li>';
         echo '<li>' . \esc_html__('No deprecated headers.', 'bastion-security-wp') . '</li>';
         echo '</ul></div>';
-        $states = $this->policy->groupStates();
+        $this->renderDisableAllForm();
+        $this->renderStyles();
+        echo '</section>';
+    }
 
-        foreach (SecurityHeadersPolicy::groupDefinitions() as $group => $definition) {
-            $groupEnabled = $states[$group];
-            echo '<div class="bastion-header-group">';
-            echo '<h4>' . $this->translatedGroupLabel($group) . '</h4>';
-            echo '<p><strong>' . \esc_html__('Status:', 'bastion-security-wp') . '</strong> ' . ($groupEnabled ? \esc_html__('Enabled', 'bastion-security-wp') : \esc_html__('Disabled', 'bastion-security-wp')) . '</p>';
-            echo '<p><code>' . \esc_html($definition['header']) . ': ' . \esc_html($definition['value']) . '</code></p>';
-            echo '<p>' . $this->translatedGroupRisk($group) . '</p>';
-            echo '<p>' . \esc_html__('Coverage: this group is emitted only on eligible wp_headers front-end responses; verify the final response at every serving edge.', 'bastion-security-wp') . '</p>';
-            if ($group === 'hsts_trial') {
-                echo '<p>' . \esc_html__('Before enabling, the current request, home URL, and site URL must all use HTTPS. Disabling stops future emission, but browsers may retain the 24-hour policy until it expires.', 'bastion-security-wp') . '</p>';
+    /** @param array<string, bool> $states */
+    private function renderBatchForm(bool $baselineEnabled, array $states): void
+    {
+        echo '<form class="bastion-header-batch" method="post" action="' . \esc_url(($this->adminUrl)('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="' . \esc_attr(self::POST_ACTION) . '">';
+
+        foreach (self::POLICY_SECTIONS as $legend => $policyIds) {
+            echo '<fieldset><legend>' . $this->translatedSectionLegend($legend) . '</legend>';
+            foreach ($policyIds as $policyId) {
+                if ($policyId === 'baseline') {
+                    $this->renderPolicyCheckbox(
+                        'baseline',
+                        \esc_html__('Baseline', 'bastion-security-wp'),
+                        $baselineEnabled,
+                        \esc_html('X-Content-Type-Options') . ': ' . \esc_html('nosniff') . '; ' . \esc_html('Referrer-Policy') . ': ' . \esc_html('strict-origin-when-cross-origin'),
+                        \esc_html__('Low-risk defaults, but final delivery still depends on the serving path.', 'bastion-security-wp'),
+                    );
+                    continue;
+                }
+
+                $definition = SecurityHeadersPolicy::groupDefinitions()[$policyId];
+                $this->renderPolicyCheckbox(
+                    $policyId,
+                    $this->translatedGroupLabel($policyId),
+                    $states[$policyId],
+                    \esc_html($definition['header']) . ': ' . \esc_html($definition['value']),
+                    $this->translatedGroupRisk($policyId),
+                );
             }
-            $this->renderForm(
-                'group',
-                $group,
-                $groupEnabled ? 'disable' : 'enable',
-                $this->translatedGroupSubmitLabel($group, $groupEnabled ? 'disable' : 'enable'),
-                ! $groupEnabled && in_array($group, self::HIGH_IMPACT_GROUPS, true),
-            );
-            echo '</div>';
+            echo '</fieldset>';
         }
 
-        echo '<p>' . \esc_html__('Bastion only adds missing headers. Existing names are matched case-insensitively; external spelling, values, and order remain unchanged.', 'bastion-security-wp') . '</p>';
-        echo '<p>' . \esc_html__('Coverage is narrow: the wp_headers filter covers standard front-end responses handled by WP::send_headers(). It is not guaranteed for wp-admin, wp-login, REST, redirects, static files, CDN or cache responses, or headers emitted by the web server.', 'bastion-security-wp') . '</p>';
-        echo '</section>';
+        echo '<label class="bastion-header-acknowledgement"><input type="checkbox" name="acknowledgement" value="1"> ' . \esc_html__('I acknowledge that selected high-impact policies can break site behavior and I have validated a rollback path.', 'bastion-security-wp') . '</label>';
+        \wp_nonce_field(self::SELECTED_NONCE_ACTION);
+        echo '<div class="bastion-header-batch-bar">';
+        echo '<button type="submit" class="button button-primary" name="command" value="enable_selected">' . \esc_html__('Enable selected', 'bastion-security-wp') . '</button> ';
+        echo '<button type="submit" class="button" name="command" value="disable_selected">' . \esc_html__('Disable selected', 'bastion-security-wp') . '</button>';
+        echo '</div></form>';
+    }
+
+    private function renderPolicyCheckbox(string $id, string $label, bool $enabled, string $policy, string $risk): void
+    {
+        echo '<label class="bastion-header-choice"><input type="checkbox" name="groups[]" value="' . \esc_attr($id) . '"> ';
+        echo '<span><strong>' . $label . '</strong> <span class="bastion-header-state">' . ($enabled ? \esc_html__('Enabled', 'bastion-security-wp') : \esc_html__('Disabled', 'bastion-security-wp')) . '</span>';
+        echo '<code>' . $policy . '</code><span>' . $risk . '</span></span></label>';
+    }
+
+    private function renderIndividualBaseline(bool $enabled): void
+    {
+        echo '<div class="bastion-header-group"><h4>' . \esc_html__('Conservative baseline', 'bastion-security-wp') . '</h4>';
+        echo '<p><code>' . \esc_html('X-Content-Type-Options') . ': ' . \esc_html('nosniff') . '</code><br><code>' . \esc_html('Referrer-Policy') . ': ' . \esc_html('strict-origin-when-cross-origin') . '</code></p>';
+        echo '<p><strong>' . \esc_html__('Status:', 'bastion-security-wp') . '</strong> ' . ($enabled ? \esc_html__('Enabled', 'bastion-security-wp') : \esc_html__('Disabled', 'bastion-security-wp')) . '</p>';
+        $this->renderForm('baseline', null, $enabled ? 'disable' : 'enable', $enabled ? \esc_html__('Disable security header baseline', 'bastion-security-wp') : \esc_html__('Enable security header baseline', 'bastion-security-wp'), false);
+        echo '</div>';
+    }
+
+    /** @param array{header: string, value: string} $definition */
+    private function renderIndividualGroup(string $group, array $definition, bool $enabled): void
+    {
+        echo '<div class="bastion-header-group"><h4>' . $this->translatedGroupLabel($group) . '</h4>';
+        echo '<p><strong>' . \esc_html__('Status:', 'bastion-security-wp') . '</strong> ' . ($enabled ? \esc_html__('Enabled', 'bastion-security-wp') : \esc_html__('Disabled', 'bastion-security-wp')) . '</p>';
+        echo '<p><code>' . \esc_html($definition['header']) . ': ' . \esc_html($definition['value']) . '</code></p>';
+        echo '<p>' . $this->translatedGroupRisk($group) . '</p>';
+        echo '<p>' . \esc_html__('Coverage: this group is emitted only on eligible wp_headers front-end responses; verify the final response at every serving edge.', 'bastion-security-wp') . '</p>';
+        if ($group === 'hsts_trial') {
+            echo '<p>' . \esc_html__('Before enabling, the current request, home URL, and site URL must all use HTTPS. Disabling stops future emission, but browsers may retain the 24-hour policy until it expires.', 'bastion-security-wp') . '</p>';
+        }
+        $this->renderForm('group', $group, $enabled ? 'disable' : 'enable', $this->translatedGroupSubmitLabel($group, $enabled ? 'disable' : 'enable'), ! $enabled && in_array($group, self::HIGH_IMPACT_GROUPS, true));
+        echo '</div>';
+    }
+
+    private function renderDisableAllForm(): void
+    {
+        echo '<div class="bastion-header-danger"><h3>' . \esc_html__('Emergency rollback', 'bastion-security-wp') . '</h3>';
+        echo '<p>' . \esc_html__('Disable every Bastion-managed header preference. Optional groups are disabled before the baseline; a two-option write can partially fail, and the resulting state will be shown after redirect.', 'bastion-security-wp') . '</p>';
+        echo '<form method="post" action="' . \esc_url(($this->adminUrl)('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="' . \esc_attr(self::POST_ACTION) . '">';
+        echo '<input type="hidden" name="command" value="disable_all">';
+        \wp_nonce_field(self::DISABLE_ALL_NONCE_ACTION);
+        \submit_button(\esc_html__('Disable all Bastion headers', 'bastion-security-wp'));
+        echo '</form></div>';
+    }
+
+    /** @param array<string, mixed> $post */
+    private function handleSelected(array $post, bool $enable): void
+    {
+        $selection = $post['groups'] ?? null;
+        $allowed = array_merge(['baseline'], array_keys(SecurityHeadersPolicy::groupDefinitions()));
+
+        if (! is_array($selection) || ! array_is_list($selection) || $selection === []) {
+            $this->redirect('invalid_selection');
+
+            return;
+        }
+
+        foreach ($selection as $id) {
+            if (! is_string($id) || ! in_array($id, $allowed, true)) {
+                $this->redirect('invalid_selection');
+
+                return;
+            }
+        }
+
+        if (count($selection) !== count(array_unique($selection))) {
+            $this->redirect('invalid_selection');
+
+            return;
+        }
+
+        if (! $this->hasValidNonce($post, self::SELECTED_NONCE_ACTION)) {
+            $this->redirect('invalid_nonce');
+
+            return;
+        }
+
+        $selected = array_values(array_filter($allowed, static fn (string $id): bool => in_array($id, $selection, true)));
+        $selectedGroups = array_values(array_filter($selected, static fn (string $id): bool => $id !== 'baseline'));
+
+        if ($enable && array_intersect($selectedGroups, self::HIGH_IMPACT_GROUPS) !== [] && ($post['acknowledgement'] ?? null) !== '1') {
+            $this->redirect('acknowledgement_required');
+
+            return;
+        }
+
+        if ($enable && in_array('hsts_trial', $selectedGroups, true) && ! $this->isHstsReady()) {
+            $this->redirect('hsts_not_ready');
+
+            return;
+        }
+
+        $results = [];
+        if ($selectedGroups !== []) {
+            $results[] = $this->policy->setGroupsEnabled($selectedGroups, $enable);
+        }
+        if (in_array('baseline', $selected, true)) {
+            $results[] = $this->policy->setEnabled($enable);
+        }
+
+        $this->redirect($this->combineResults($results));
+    }
+
+    /** @param array<string, mixed> $post */
+    private function hasValidNonce(array $post, string $action): bool
+    {
+        $nonce = $post['_wpnonce'] ?? null;
+
+        return is_string($nonce) && ($this->verifyNonce)($nonce, $action);
+    }
+
+    /** @param list<string> $results */
+    private function combineResults(array $results): string
+    {
+        $updated = in_array('updated', $results, true);
+        $failed = in_array('write_failed', $results, true);
+
+        if ($updated && $failed) {
+            return 'partial_failure';
+        }
+        if ($failed) {
+            return 'write_failed';
+        }
+
+        return $updated ? 'updated' : 'unchanged';
+    }
+
+    private function translatedSectionLegend(string $section): string
+    {
+        return match ($section) {
+            'Conservative baseline' => \esc_html__('Conservative baseline', 'bastion-security-wp'),
+            'Compatibility restrictions' => \esc_html__('Compatibility restrictions', 'bastion-security-wp'),
+            'Transport/content upgrade' => \esc_html__('Transport/content upgrade', 'bastion-security-wp'),
+            'Cross-origin isolation' => \esc_html('Cross-origin') . ' ' . \esc_html__('isolation', 'bastion-security-wp'),
+        };
     }
 
     private function translatedGroupLabel(string $group): string
@@ -255,15 +431,17 @@ final class SecurityHeadersAdmin
     private function renderNotice(string $notice): void
     {
         $message = match ($notice) {
-            'updated' => \esc_html__('The Bastion security-header preference was updated.', 'bastion-security-wp'),
-            'unchanged' => \esc_html__('The Bastion security-header preference was already in the requested state.', 'bastion-security-wp'),
+            'updated' => \esc_html__('The selected Bastion security-header preferences were updated. The current states are shown below.', 'bastion-security-wp'),
+            'unchanged' => \esc_html__('The selected Bastion security-header preferences were already in the requested states.', 'bastion-security-wp'),
+            'partial_failure' => \esc_html__('Only part of the requested header change was saved. Review the resulting states below before retrying.', 'bastion-security-wp'),
             'write_failed' => \esc_html__('WordPress could not save the Bastion security-header preference.', 'bastion-security-wp'),
             'invalid_nonce' => \esc_html__('The request could not be verified. No change was made.', 'bastion-security-wp'),
             'invalid_command' => \esc_html__('The requested command is not supported. No change was made.', 'bastion-security-wp'),
             'invalid_target' => \esc_html__('The requested security-header target is not supported. No change was made.', 'bastion-security-wp'),
             'invalid_group' => \esc_html__('The requested security-header group is not supported. No change was made.', 'bastion-security-wp'),
-            'acknowledgement_required' => \esc_html__('A risk acknowledgement is required before enabling this policy group. No change was made.', 'bastion-security-wp'),
-            'hsts_not_ready' => \esc_html__('Bastion could not confirm HSTS readiness. Use an HTTPS admin request and configure both the WordPress Address and Site Address with HTTPS, then retry.', 'bastion-security-wp'),
+            'invalid_selection' => \esc_html__('Select one or more unique supported policies. No change was made.', 'bastion-security-wp'),
+            'acknowledgement_required' => \esc_html__('A risk acknowledgement is required before enabling the selected high-impact policies. No change was made.', 'bastion-security-wp'),
+            'hsts_not_ready' => \esc_html__('Bastion could not confirm HSTS readiness, so no selected policy was changed. Use an HTTPS admin request and configure both the WordPress Address and Site Address with HTTPS, then retry.', 'bastion-security-wp'),
             'forbidden' => \esc_html__('You are not allowed to perform this action. No change was made.', 'bastion-security-wp'),
             default => null,
         };
@@ -272,7 +450,40 @@ final class SecurityHeadersAdmin
             return;
         }
 
-        echo '<div class="notice notice-info"><p>' . $message . '</p></div>';
+        $severity = match ($notice) {
+            'updated' => 'success',
+            'unchanged' => 'info',
+            'partial_failure', 'acknowledgement_required', 'hsts_not_ready' => 'warning',
+            default => 'error',
+        };
+        echo '<div class="notice notice-' . $severity . '"><p>' . $message . '</p></div>';
+    }
+
+    private function renderStyles(): void
+    {
+        echo <<<'HTML'
+<style>
+.bastion-header-tool .bastion-header-batch fieldset {
+    margin: 16px 0;
+    padding: 12px 16px;
+    border: 1px solid #c3c4c7;
+    background: #fff;
+}
+.bastion-header-tool .bastion-header-batch legend { padding: 0 6px; font-weight: 600; }
+.bastion-header-tool .bastion-header-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; margin: 10px 0; }
+.bastion-header-tool .bastion-header-choice > span,
+.bastion-header-tool .bastion-header-choice code { display: block; }
+.bastion-header-tool .bastion-header-state { margin-left: 6px; color: #50575e; font-weight: 400; }
+.bastion-header-tool .bastion-header-batch-bar { position: sticky; bottom: 0; z-index: 2; padding: 12px; border: 1px solid #c3c4c7; background: #f6f7f7; }
+.bastion-header-tool .bastion-header-acknowledgement { display: block; margin: 16px 0; font-weight: 600; }
+.bastion-header-tool .bastion-header-group { margin: 16px 0; padding: 16px; border-left: 4px solid #72aee6; background: #fff; }
+.bastion-header-tool .bastion-header-danger { margin-top: 24px; padding: 16px; border: 1px solid #d63638; background: #fff; }
+@media (max-width: 782px) {
+    .bastion-header-tool .bastion-header-batch-bar { position: static; }
+    .bastion-header-tool .bastion-header-batch-bar .button { display: block; width: 100%; margin: 8px 0; }
+}
+</style>
+HTML;
     }
 
     private function isHstsReady(): bool
@@ -300,7 +511,7 @@ final class SecurityHeadersAdmin
 
     private function redirect(string $notice): void
     {
-        $url = ($this->adminUrl)('tools.php?page=' . FileEditorAdmin::PAGE_SLUG . '&' . self::NOTICE_QUERY . '=' . rawurlencode($notice));
+        $url = ($this->adminUrl)('tools.php?page=' . FileEditorAdmin::PAGE_SLUG . '&tab=headers&' . self::NOTICE_QUERY . '=' . rawurlencode($notice) . '#bastion-header-actions');
         ($this->safeRedirect)($url);
         ($this->terminate)();
     }

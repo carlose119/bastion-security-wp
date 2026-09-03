@@ -2,13 +2,25 @@
 
 Bastion Security WP provides focused WordPress security posture diagnostics and two reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
 
+## Quick navigation
+
+Open **Tools > Bastion Security** as an administrator with `manage_options`, then choose the tab for the job:
+
+| Tab | Purpose |
+|---|---|
+| **Overview** | Summary counts, the seven Bastion diagnostics, and a link to native WordPress Site Health. |
+| **Hardening** | The reversible WordPress file-editor lock. |
+| **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
+
+Only the active tab is rendered. Unknown or malformed tab values fall back to **Overview**.
+
 ## Safe activation path
 
-1. Open **Tools > Bastion Security** as an administrator with `manage_options`.
-2. Review the seven Bastion diagnostics and enable the conservative security-header baseline first.
+1. Review the seven diagnostics on **Overview**.
+2. Open **Security headers**, select the conservative baseline, and choose **Enable selected**.
 3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
-4. Enable optional policy groups one at a time. Read the policy-specific warning, acknowledge high-impact groups, and verify the affected user flows after every change.
-5. Treat HSTS as the final step: confirm the current request, WordPress Address, and Site Address all use HTTPS before starting its 24-hour trial.
+4. Select only the optional groups you intend to enable. One aggregate acknowledgement covers the selected high-impact groups; it is not required for the baseline or `legacy_cross_domain` alone.
+5. Treat HSTS as the final step. If `hsts_trial` is selected, Bastion confirms that the current request, WordPress Address, and Site Address all use HTTPS before writing any part of that enable-selected batch.
 
 ## Current scope
 
@@ -48,7 +60,9 @@ Bastion writes only its own WordPress option; it never edits `wp-config.php` or 
 
 ### HTTP security-header policies
 
-Bastion provides one backward-compatible baseline toggle and seven independent optional groups. All optional groups are **off by default**. They remain independent of the baseline, so an administrator can stage and verify one policy at a time.
+Bastion provides one backward-compatible baseline toggle and seven independent optional groups. All optional groups are **off by default**. They remain independent of the baseline, and the UI provides both selected batch actions and individual controls.
+
+The selected batch form accepts only the baseline and seven allowlisted group IDs. Choose **Enable selected** or **Disable selected**; there is intentionally no enable-all action. Selections must be non-empty and unique, and Bastion canonicalizes them into policy order before writing. Optional groups are updated in one option write, while the baseline remains a separate option for backward compatibility.
 
 The baseline adds exactly:
 
@@ -71,9 +85,11 @@ The optional groups add these exact values, in this deterministic order when ena
 
 #### Activation and rollback rules
 
-Enabling `framing`, `browser_capabilities`, `mixed_content_upgrade`, `hsts_trial`, `opener_isolation`, or `resource_isolation` requires an explicit risk acknowledgement. Disabling any group never requires acknowledgement.
+Enabling `framing`, `browser_capabilities`, `mixed_content_upgrade`, `hsts_trial`, `opener_isolation`, or `resource_isolation` requires an explicit risk acknowledgement. A selected batch uses one aggregate acknowledgement for any of those six groups. Disabling selected policies never requires acknowledgement or transport readiness.
 
-HSTS enablement is also blocked unless the current administration request uses SSL and both the configured WordPress Address and Site Address begin with HTTPS. Bastion skips HSTS emission on every non-HTTPS request even when its preference is enabled. Disabling HSTS stops future Bastion emission immediately, but browsers may retain the 24-hour policy until it expires; disabling the plugin cannot erase policy already remembered by a browser.
+HSTS enablement is also blocked unless the current administration request uses SSL and both the configured WordPress Address and Site Address begin with HTTPS. When an enable-selected batch includes `hsts_trial`, that readiness check is an all-or-nothing preflight: no selected baseline or group write begins unless it passes. Bastion skips HSTS emission on every non-HTTPS request even when its preference is enabled. Disabling HSTS stops future Bastion emission immediately, but browsers may retain the 24-hour policy until it expires; disabling the plugin cannot erase policy already remembered by a browser.
+
+**Disable all Bastion headers** is a separate rollback action. It requires neither acknowledgement nor HSTS readiness and disables optional groups before the baseline. Because groups and baseline use two independent WordPress options, a mixed selected action or disable-all action is not transactional: one option write can succeed while the other fails. Bastion reports that partial failure and displays the resulting state instead of claiming a rollback or transaction. Individual baseline and group controls remain available for focused changes and recovery.
 
 The behavior is deliberately add-only:
 
@@ -138,8 +154,8 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 
 ## Rollback
 
-- **Header policies:** disable the affected optional group or baseline under **Tools > Bastion Security**. Bastion immediately stops future emission. HSTS may remain in browsers for up to 24 hours after its last received policy. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
-- **File-editor lock:** disable it on the same page to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
+- **Header policies:** open **Tools > Bastion Security > Security headers**, then disable selected policies, use an individual control, or use the isolated **Disable all Bastion headers** action. Recheck the displayed state if a two-option operation reports a partial failure. Bastion immediately stops future emission for preferences that were disabled. HSTS may remain in browsers for up to 24 hours after its last received policy. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
+- **File-editor lock:** open **Tools > Bastion Security > Hardening** and disable it to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
 - **Plugin:** deactivate Bastion to remove its seven Site Health tests and future runtime enforcement. Plugin-owned options remain in the database for later reactivation.
 
 Bastion creates no cron, cache, log, or filesystem state requiring cleanup.

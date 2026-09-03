@@ -25,6 +25,21 @@ final class FileEditorAdminTest extends TestCase
         self::assertStringContainsString('bastion_notice=updated', $redirects[1]);
     }
 
+    public function testRedirectPreservesHardeningTabAndFragment(): void
+    {
+        $stored = false;
+        $redirects = [];
+        $this->admin($stored, false, true, true, $redirects)->handle([
+            'command' => 'enable',
+            '_wpnonce' => 'valid',
+        ]);
+
+        self::assertSame(
+            'https://example.test/wp-admin/tools.php?page=bastion-security-wp&tab=hardening&bastion_notice=updated#bastion-file-editor',
+            $redirects[0],
+        );
+    }
+
     public function testUnauthorizedRequestPerformsNoMutation(): void
     {
         $stored = false;
@@ -52,6 +67,27 @@ final class FileEditorAdminTest extends TestCase
         self::assertStringContainsString('bastion_notice=invalid_nonce', $redirects[0]);
         self::assertStringContainsString('bastion_notice=invalid_command', $redirects[1]);
         self::assertStringContainsString('bastion_notice=invalid_command', $redirects[2]);
+    }
+
+    public function testNoticesUseAccurateNativeSeverities(): void
+    {
+        $stored = false;
+        $redirects = [];
+        $admin = $this->admin($stored, false, true, true, $redirects);
+
+        foreach ([
+            'updated' => 'success',
+            'unchanged' => 'info',
+            'unavailable' => 'warning',
+            'external_conflict' => 'warning',
+            'invalid_nonce' => 'error',
+            'write_failed' => 'error',
+        ] as $notice => $severity) {
+            ob_start();
+            $admin->renderToolSection($notice);
+            $html = (string) ob_get_clean();
+            self::assertStringContainsString('notice notice-' . $severity, $html, $notice);
+        }
     }
 
     public function testMultisiteRequestPerformsNoMutation(): void
