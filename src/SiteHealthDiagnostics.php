@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BastionSecurityWP;
 
+use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\PluginActivityAlertPolicy;
@@ -28,6 +29,7 @@ final class SiteHealthDiagnostics
         ?PluginUpdateCompatibility $pluginUpdateCompatibility = null,
         private readonly ?LoginProtectionPolicy $loginProtectionPolicy = null,
         private readonly ?PluginActivityAlertPolicy $pluginActivityAlertPolicy = null,
+        private readonly ?AdministratorAccountAlertPolicy $administratorAccountAlertPolicy = null,
         private readonly ?XmlRpcPingbackPolicy $xmlRpcPingbackPolicy = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
@@ -80,6 +82,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_plugin_activity_alerts' => [
                 'label' => 'Bastion: Plugin activity email alerts',
                 'test' => $this->pluginActivityAlerts(...),
+            ],
+            'bastion_security_wp_administrator_account_alerts' => [
+                'label' => 'Bastion: Administrator account alerts',
+                'test' => $this->administratorAccountAlerts(...),
             ],
             'bastion_security_wp_security_headers' => [
                 'label' => 'Bastion: Security header preset',
@@ -236,6 +242,41 @@ final class SiteHealthDiagnostics
     }
 
     /** @return array<string, mixed> */
+    public function administratorAccountAlerts(): array
+    {
+        try {
+            $state = $this->administratorAccountAlertPolicy?->diagnosticState()
+                ?? ['assessed' => false, 'enabled' => false, 'recipients' => []];
+            if (! $state['assessed']) {
+                return $this->result(
+                    DiagnosticStatus::Recommended,
+                    'Bastion: Administrator account alerts',
+                    'Evidence: The per-site Administrator Account Alerts configuration could not be read.',
+                    'Meaning: Not assessed. Bastion makes no claim about alert configuration, email delivery, or complete administrator-event capture.',
+                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Bastion Security > Hardening.',
+                );
+            }
+
+            $recipientCount = count($state['recipients']);
+
+            return $this->result(
+                $state['enabled'] && $recipientCount > 0 ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                'Bastion: Administrator account alerts',
+                sprintf(
+                    'Evidence: The readable per-site Administrator Account Alerts setting is %s with %d configured %s.',
+                    $state['enabled'] ? 'enabled' : 'disabled',
+                    $recipientCount,
+                    $recipientCount === 1 ? 'recipient' : 'recipients',
+                ),
+                'Meaning: A Good result means only that the configuration is readable, enabled, and has recipients. It does not prove wp_mail delivery or complete event capture.',
+                'Remediation: Review recipients, privacy, actor context, and event limitations under Tools > Bastion Security > Hardening, then verify mail transport independently.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed('Bastion: Administrator account alerts');
+        }
+    }
+
+    /** @return array<string, mixed> */
     public function securityHeaders(): array
     {
         try {
@@ -364,6 +405,7 @@ final class SiteHealthDiagnostics
                 'Bastion: Login Protection' => 'login_protection',
                 'Bastion: XML-RPC Pingback Protection' => 'xmlrpc_pingback_protection',
                 'Bastion: Plugin activity email alerts' => 'plugin_activity_alerts',
+                'Bastion: Administrator account alerts' => 'administrator_account_alerts',
                 'Bastion: Security header preset' => 'security_headers',
                 'Bastion: File modification posture' => 'file_modifications',
                 default => 'runtime',

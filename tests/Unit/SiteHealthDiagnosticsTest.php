@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace BastionSecurityWP\Tests\Unit;
 
+use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
 use BastionSecurityWP\Admin\PluginActivityAlertAdmin;
 use BastionSecurityWP\Admin\XmlRpcPingbackAdmin;
 use BastionSecurityWP\Bootstrap;
+use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\PluginActivityAlertPolicy;
@@ -56,6 +58,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_login_protection',
             'bastion_security_wp_xmlrpc_pingback_protection',
             'bastion_security_wp_plugin_activity_alerts',
+            'bastion_security_wp_administrator_account_alerts',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
@@ -63,20 +66,21 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_rest_surface_inventory',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(11, array_unique(array_keys($tests['direct'])));
+        self::assertCount(12, array_unique(array_keys($tests['direct'])));
     }
 
-    public function testSharedReportListContainsExactlyTenBastionDiagnosticsInStableOrder(): void
+    public function testSharedReportListContainsExactlyElevenBastionDiagnosticsInStableOrder(): void
     {
         $results = $this->diagnostics()->reports();
 
-        self::assertCount(10, $results);
+        self::assertCount(11, $results);
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
             'bastion_security_wp_xmlrpc_pingback_protection',
             'bastion_security_wp_plugin_activity_alerts',
+            'bastion_security_wp_administrator_account_alerts',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
@@ -96,13 +100,14 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_login_protection',
             'bastion_security_wp_xmlrpc_pingback_protection',
             'bastion_security_wp_plugin_activity_alerts',
+            'bastion_security_wp_administrator_account_alerts',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
             'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);
@@ -226,6 +231,42 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString('Tools > Bastion Security > Hardening', $result['actions']);
     }
 
+    public function testAdministratorAccountAlertDiagnosticRequiresReadableEnabledConfigurationWithRecipients(): void
+    {
+        $unassessed = $this->diagnostics()->administratorAccountAlerts();
+        self::assertSame('recommended', $unassessed['status']);
+        self::assertStringContainsString('Not assessed', $unassessed['description']);
+        self::assertStringContainsString('complete administrator-event capture', $unassessed['description']);
+
+        $disabledPolicy = new AdministratorAccountAlertPolicy(
+            static fn (): array => ['enabled' => false, 'recipients' => ['one@example.test']],
+            validateEmail: static fn (string $email): bool => true,
+        );
+        $disabled = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            administratorAccountAlertPolicy: $disabledPolicy,
+        );
+        self::assertSame('recommended', $disabled->administratorAccountAlerts()['status']);
+        self::assertStringContainsString('disabled with 1 configured recipient', $disabled->administratorAccountAlerts()['description']);
+
+        $enabledPolicy = new AdministratorAccountAlertPolicy(
+            static fn (): array => ['enabled' => true, 'recipients' => ['one@example.test', 'two@example.test']],
+            validateEmail: static fn (string $email): bool => true,
+        );
+        $enabled = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            administratorAccountAlertPolicy: $enabledPolicy,
+        );
+        $result = $enabled->administratorAccountAlerts();
+        self::assertSame('good', $result['status']);
+        self::assertStringContainsString('readable per-site', $result['description']);
+        self::assertStringContainsString('enabled with 2 configured recipients', $result['description']);
+        self::assertStringContainsString('does not prove wp_mail delivery', $result['description']);
+        self::assertStringContainsString('complete event capture', $result['description']);
+    }
+
     public function testSecurityHeaderDiagnosticReportsBaselineAndActiveGroupsWithoutClaimingDelivery(): void
     {
         $disabled = $this->diagnostics()->securityHeaders();
@@ -290,6 +331,13 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString("add_filter('wp_headers', \$xmlRpcPingbackPolicy->filterHeaders(...), PHP_INT_MAX, 1)", $source);
         self::assertStringContainsString("add_action('upgrader_process_complete', \$pluginActivityAlertPolicy->handleUpgraderProcessComplete(...), 10, 2)", $source);
         self::assertStringContainsString("add_action('activated_plugin', \$pluginActivityAlertPolicy->handleActivatedPlugin(...), 10, 2)", $source);
+        self::assertStringContainsString("add_action('add_user_role', \$administratorAccountAlertPolicy->handleAddUserRole(...), 10, 2)", $source);
+        self::assertStringContainsString("add_action('remove_user_role', \$administratorAccountAlertPolicy->handleRemoveUserRole(...), 10, 2)", $source);
+        self::assertStringContainsString("add_action('deleted_user', \$administratorAccountAlertPolicy->handleDeletedUser(...), 10, 3)", $source);
+        self::assertStringContainsString("admin_post_' . AdministratorAccountAlertAdmin::POST_ACTION", $source);
+        self::assertStringNotContainsString("add_action('set_user_role'", $source);
+        self::assertStringNotContainsString("add_action('user_register'", $source);
+        self::assertStringNotContainsString("add_action('delete_user'", $source);
         self::assertStringContainsString("add_filter('wp_headers'", $source);
         self::assertStringNotContainsString('header(', $source . $policySource . $xmlRpcSource);
         self::assertStringNotContainsString('header_remove', $source . $xmlRpcSource);

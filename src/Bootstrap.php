@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace BastionSecurityWP;
 
+use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
 use BastionSecurityWP\Admin\FileEditorAdmin;
 use BastionSecurityWP\Admin\LoginProtectionAdmin;
 use BastionSecurityWP\Admin\PluginActivityAlertAdmin;
 use BastionSecurityWP\Admin\SecurityDashboard;
 use BastionSecurityWP\Admin\SecurityHeadersAdmin;
 use BastionSecurityWP\Admin\XmlRpcPingbackAdmin;
+use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\PluginActivityAlertPolicy;
@@ -43,6 +45,7 @@ final class Bootstrap
         $securityHeadersPolicy = new SecurityHeadersPolicy();
         $loginProtectionPolicy = new LoginProtectionPolicy();
         $pluginActivityAlertPolicy = new PluginActivityAlertPolicy();
+        $administratorAccountAlertPolicy = new AdministratorAccountAlertPolicy();
         $xmlRpcPingbackPolicy = new XmlRpcPingbackPolicy();
 
         $siteHealth = new SiteHealthDiagnostics(
@@ -50,6 +53,7 @@ final class Bootstrap
             securityHeadersPolicy: $securityHeadersPolicy,
             loginProtectionPolicy: $loginProtectionPolicy,
             pluginActivityAlertPolicy: $pluginActivityAlertPolicy,
+            administratorAccountAlertPolicy: $administratorAccountAlertPolicy,
             xmlRpcPingbackPolicy: $xmlRpcPingbackPolicy,
         );
 
@@ -66,17 +70,22 @@ final class Bootstrap
             $loginProtectionAdmin = new LoginProtectionAdmin($loginProtectionPolicy);
             $xmlRpcPingbackAdmin = new XmlRpcPingbackAdmin($xmlRpcPingbackPolicy);
             $pluginActivityAlertAdmin = new PluginActivityAlertAdmin($pluginActivityAlertPolicy);
+            $administratorAccountAlertAdmin = new AdministratorAccountAlertAdmin($administratorAccountAlertPolicy);
             $securityHeadersAdmin = new SecurityHeadersAdmin($securityHeadersPolicy);
-            $dashboard = new SecurityDashboard($siteHealth, $fileEditorAdmin, $securityHeadersAdmin, $loginProtectionAdmin, $xmlRpcPingbackAdmin, $pluginActivityAlertAdmin);
+            $dashboard = new SecurityDashboard($siteHealth, $fileEditorAdmin, $securityHeadersAdmin, $loginProtectionAdmin, $xmlRpcPingbackAdmin, $pluginActivityAlertAdmin, $administratorAccountAlertAdmin);
             \add_action('wp_login_failed', $loginProtectionPolicy->recordFailure(...), 10, 2);
             \add_action('wp_login', $loginProtectionPolicy->recordSuccess(...), 10, 2);
             \add_action('upgrader_process_complete', $pluginActivityAlertPolicy->handleUpgraderProcessComplete(...), 10, 2);
             \add_action('activated_plugin', $pluginActivityAlertPolicy->handleActivatedPlugin(...), 10, 2);
+            \add_action('add_user_role', $administratorAccountAlertPolicy->handleAddUserRole(...), 10, 2);
+            \add_action('remove_user_role', $administratorAccountAlertPolicy->handleRemoveUserRole(...), 10, 2);
+            \add_action('deleted_user', $administratorAccountAlertPolicy->handleDeletedUser(...), 10, 3);
             \add_action('admin_menu', $dashboard->registerPage(...));
             \add_action('admin_post_' . FileEditorAdmin::POST_ACTION, $fileEditorAdmin->handleRequest(...));
             \add_action('admin_post_' . LoginProtectionAdmin::POST_ACTION, $loginProtectionAdmin->handleRequest(...));
             \add_action('admin_post_' . XmlRpcPingbackAdmin::POST_ACTION, $xmlRpcPingbackAdmin->handleRequest(...));
             \add_action('admin_post_' . PluginActivityAlertAdmin::POST_ACTION, $pluginActivityAlertAdmin->handleRequest(...));
+            \add_action('admin_post_' . AdministratorAccountAlertAdmin::POST_ACTION, $administratorAccountAlertAdmin->handleRequest(...));
             \add_action('admin_post_' . SecurityHeadersAdmin::POST_ACTION, $securityHeadersAdmin->handleRequest(...));
         }
     }

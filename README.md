@@ -1,6 +1,6 @@
 # Bastion Security WP
 
-Bastion Security WP provides focused WordPress security posture diagnostics and five reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
+Bastion Security WP provides focused WordPress security posture diagnostics and six reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
 
 ## Quick navigation
 
@@ -8,15 +8,15 @@ Open **Tools > Bastion Security** as an administrator with `manage_options`, the
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Summary counts, the ten Bastion diagnostics, and a link to native WordPress Site Health. |
-| **Hardening** | The reversible WordPress file-editor lock, opt-in Login Protection, opt-in XML-RPC Pingback Protection, and opt-in plugin activity email alerts. |
+| **Overview** | Summary counts, the eleven Bastion diagnostics, and a link to native WordPress Site Health. |
+| **Hardening** | The reversible WordPress file-editor lock, opt-in Login Protection, opt-in XML-RPC Pingback Protection, plugin activity email alerts, and Administrator Account Alerts. |
 | **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
 
 Only the active tab is rendered. Unknown or malformed tab values fall back to **Overview**.
 
 ## Safe activation path
 
-1. Review the ten diagnostics on **Overview**.
+1. Review the eleven diagnostics on **Overview**.
 2. Open **Security headers**, select the conservative baseline, and choose **Enable selected**.
 3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
 4. Select only the optional groups you intend to enable. One aggregate acknowledgement covers the selected high-impact groups; it is not required for the baseline or `legacy_cross_domain` alone.
@@ -24,18 +24,19 @@ Only the active tab is rendered. Unknown or malformed tab values fall back to **
 
 ## Current scope
 
-The plugin adds ten deterministic direct tests to WordPress Site Health, in stable order:
+The plugin adds eleven deterministic direct tests to WordPress Site Health, in stable order:
 
 1. HTTPS and admin transport posture.
 2. File editor posture.
 3. Login Protection setting and limitations.
 4. XML-RPC Pingback Protection setting and limitations.
 5. Plugin activity email alert configuration.
-6. Security header preset preference.
-7. File modification and update posture.
-8. Runtime compatibility notice.
-9. Read-only pending plugin-update compatibility.
-10. Read-only REST surface inventory.
+6. Administrator Account Alerts configuration.
+7. Security header preset preference.
+8. File modification and update posture.
+9. Runtime compatibility notice.
+10. Read-only pending plugin-update compatibility.
+11. Read-only REST surface inventory.
 
 The assessments remain request-local and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation. The Bastion dashboard presents the same results with Site Health-inspired, accessible `details`/`summary` markup and links to native WordPress Site Health for the full suite.
 
@@ -129,6 +130,26 @@ Enabled means Bastion will attempt to send. It does not prove delivery: delivery
 
 To roll back, clear the enable checkbox and save. Disabling preserves the configured recipient list for a later re-enable and stops future Bastion attempts; it cannot retract email already handed to the mail transport.
 
+### Administrator Account Alerts
+
+Administrator Account Alerts are opt-in and configured independently per site under **Tools > Bastion Security > Hardening**. Select **Enable administrator account alerts**, enter at least one recipient separated by a comma or newline, and save. Each token must be a valid address, at most 254 bytes; the list is limited to 50 recipients. Any invalid token rejects the entire write. Duplicates are removed case-insensitively while preserving the first spelling. Bastion never falls back to `admin_email` and never reuses the Plugin activity email alert recipients.
+
+The exact observed events are:
+
+- **Administrator role granted:** the `add_user_role` hook with the exact `administrator` role.
+- **Administrator role removed:** the `remove_user_role` hook with the exact `administrator` role.
+- **Administrator account deleted:** the post-delete `deleted_user` hook only when its supplied deleted-user snapshot contains the exact `administrator` role.
+
+Bastion intentionally does not observe `set_user_role`, `user_register`, or `delete_user`. In ordinary WordPress flows, role addition and removal hooks precede `set_user_role` and cover standard role transitions; administrator creation reaches `add_user_role` before `user_register`. Registering the later hooks would duplicate alerts. This is hook-based observation, not an exactly-once guarantee.
+
+Each message includes only the event, target user ID, a bounded and control-character-stripped target login or **Unavailable**, the `administrator` role where applicable, contextual current WordPress user ID and login or **Unavailable**, current site name and URL, and WordPress-local timestamp. It excludes target and actor email addresses, display names, IP addresses, user agents, passwords, capability lists, deletion reassignment, and arbitrary metadata. The current user is contextual and may be absent; it does not prove who caused an event.
+
+Bastion makes one plain-text `wp_mail` call per recipient with empty headers, preventing recipient-address disclosure. A failed or throwing send does not stop later recipients or the account lifecycle. There is no delivery claim, retry, queue, history, counter, audit log, rollback, enforcement, or account blocking.
+
+On multisite, the option and observation remain in the current-blog context. Ordinary administrator grants through `add_user_to_blog` may reach the observed role-addition hook. `remove_user_from_blog` can call `remove_all_caps` and bypass `remove_user_role`; super-admin grant/revoke, network deletion, cross-site fan-out, and network settings are outside scope. Bastion does not call `switch_to_blog`.
+
+To roll back, clear the enable checkbox and save. Disabling preserves recipients for a later re-enable and stops future attempts; it cannot recall email already handed to the mail transport or reverse account changes. Delete the `bastion_security_wp_administrator_account_alerts` option to remove its saved configuration completely.
+
 ### HTTP security-header policies
 
 Bastion provides one backward-compatible baseline toggle and seven independent optional groups. All optional groups are **off by default**. They remain independent of the baseline, and the UI provides both selected batch actions and individual controls.
@@ -190,11 +211,11 @@ Output is escaped, capped at 100 deterministically sorted routes, and reports om
 
 ## Explicit non-goals
 
-Bastion includes no public mutation endpoint, REST policy, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. The only alerting is the narrowly scoped, opt-in plugin installation and activation email tool described above. The only settings UI and database writes are the Tools page and the plugin-owned file-editor, Login Protection configuration/metrics/transients, plugin activity email alert configuration, XML-RPC pingback preference, header-baseline, and enabled-group state described above. Mutations use WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
+Bastion includes no public mutation endpoint, REST policy, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. Alerting is limited to the two independent, opt-in tools described above: plugin installation/activation notices and administrator account lifecycle notices. The settings UI and database writes are limited to the Tools page and plugin-owned file-editor preference, Login Protection configuration/metrics/transients, plugin activity alert configuration, Administrator Account Alerts configuration, XML-RPC pingback preference, header baseline, and enabled-group state. Administrator Account Alerts add no enforcement, role blocking, account rollback, logs, counters, history, retries, queues, REST/AJAX/cron endpoints, network settings, IP capture, or user-agent capture. Mutations require WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
 
 ## Compatibility target
 
-- WordPress 6.8 through 7.0
+- WordPress 6.8 through 7.1
 - PHP 8.1 through 8.4 where those WordPress versions and upstream dependencies support it
 
 Compatibility is a validation target, not a claim that unsupported upstream combinations are safe.
@@ -230,7 +251,8 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 - **Login Protection:** open **Tools > Bastion Security > Hardening** and disable it. Disabling advances the generation and invalidates prior temporary blocks; aggregate metrics remain. Use **Reset temporary blocks** to invalidate blocks without disabling or clearing metrics.
 - **XML-RPC Pingback Protection:** open **Tools > Bastion Security > Hardening** and disable it. Bastion stops removing the two pingback methods and WordPress-filtered `X-Pingback` headers on later requests, but it cannot restore removals made by another component or headers outside `wp_headers`.
 - **Plugin activity email alerts:** open **Tools > Bastion Security > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; already handed-off email cannot be recalled.
-- **Plugin:** deactivate Bastion to remove its ten Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
+- **Administrator Account Alerts:** open **Tools > Bastion Security > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; it does not reverse account changes or recall handed-off email. Delete `bastion_security_wp_administrator_account_alerts` to remove this saved configuration.
+- **Plugin:** deactivate Bastion to remove its eleven Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
 
 Bastion creates no cron, queue, audit-log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.
 
