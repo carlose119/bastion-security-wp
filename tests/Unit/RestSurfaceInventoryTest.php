@@ -162,13 +162,19 @@ final class RestSurfaceInventoryTest extends TestCase
         self::assertSame('good', $diagnostics->fileEditor()['status']);
     }
 
-    public function testNoRestDispatchOrPolicyHooksAreRegistered(): void
+    public function testInventoryRemainsPassiveAndRouteControlsAvoidInventoryAndAuthenticationCoupling(): void
     {
-        $source = file_get_contents(dirname(__DIR__, 2) . '/src/Bootstrap.php');
+        $inventorySource = (string) file_get_contents(dirname(__DIR__, 2) . '/src/RestSurfaceInventory.php');
+        $policySource = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Security/RestRouteControlsPolicy.php');
+        $bootstrapSource = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Bootstrap.php');
 
-        foreach (['rest_authentication_errors', 'rest_pre_dispatch', 'rest_endpoints'] as $hook) {
-            self::assertStringNotContainsString($hook, (string) $source);
-        }
+        self::assertStringNotContainsString('->get_routes(', $inventorySource . $policySource);
+        self::assertStringNotContainsString('rest_endpoints', $policySource . $bootstrapSource);
+        self::assertStringContainsString("add_filter('rest_request_before_callbacks'", $bootstrapSource);
+        self::assertStringNotContainsString('rest_authentication_errors', $policySource . $bootstrapSource);
+        self::assertStringNotContainsString('wp_is_application_passwords_available', $policySource . $bootstrapSource);
+        self::assertStringNotContainsString('rest_jsonp_enabled', $policySource . $bootstrapSource);
+        self::assertStringNotContainsString('rest_pre_dispatch', $policySource . $bootstrapSource);
     }
 
     /** @param array<mixed> $registry */

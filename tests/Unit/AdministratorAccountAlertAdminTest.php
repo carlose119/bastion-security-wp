@@ -128,7 +128,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
 
             foreach ([
-                'six reversible hardening tools', 'eleven Bastion diagnostics', 'Administrator Account Alerts',
+                'seven reversible security tools', 'twelve Bastion diagnostics', 'Administrator Account Alerts',
                 'comma or newline', '50 recipients', '254 bytes', 'never falls back to `admin_email`',
                 'Administrator role granted', 'Administrator role removed', 'Administrator account deleted',
                 '`add_user_role`', '`remove_user_role`', '`deleted_user`', '`set_user_role`', '`user_register`',

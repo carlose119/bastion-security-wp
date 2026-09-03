@@ -55,6 +55,7 @@ namespace {
 
 namespace BastionSecurityWP\Tests\Unit {
     use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
+    use BastionSecurityWP\Admin\RestRouteControlsAdmin;
     use BastionSecurityWP\Admin\FileEditorAdmin;
     use BastionSecurityWP\Admin\LoginProtectionAdmin;
     use BastionSecurityWP\Admin\PluginActivityAlertAdmin;
@@ -62,11 +63,13 @@ namespace BastionSecurityWP\Tests\Unit {
     use BastionSecurityWP\Admin\SecurityHeadersAdmin;
     use BastionSecurityWP\Admin\XmlRpcPingbackAdmin;
     use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
+    use BastionSecurityWP\Security\RestRouteControlsPolicy;
     use BastionSecurityWP\Security\FileEditorPolicy;
     use BastionSecurityWP\Security\LoginProtectionPolicy;
     use BastionSecurityWP\Security\PluginActivityAlertPolicy;
     use BastionSecurityWP\Security\SecurityHeadersPolicy;
     use BastionSecurityWP\Security\XmlRpcPingbackPolicy;
+    use BastionSecurityWP\RestRouteCatalog;
     use BastionSecurityWP\SiteHealthDiagnostics;
     use PHPUnit\Framework\TestCase;
 
@@ -74,19 +77,20 @@ namespace BastionSecurityWP\Tests\Unit {
     {
         protected function tearDown(): void
         {
-            unset($_GET['tab'], $_GET['bastion_notice'], $_GET['bastion_login_notice'], $_GET['bastion_xmlrpc_pingback_notice'], $_GET['bastion_plugin_alert_notice'], $_GET['bastion_administrator_alert_notice']);
+            unset($_GET['tab'], $_GET['bastion_notice'], $_GET['bastion_login_notice'], $_GET['bastion_xmlrpc_pingback_notice'], $_GET['bastion_rest_route_controls_notice'], $_GET['bastion_plugin_alert_notice'], $_GET['bastion_administrator_alert_notice']);
         }
 
         public function testTabsUseNativeMarkupAndOnlyRenderTheActivePanel(): void
         {
             $overview = $this->renderTab('overview');
-            self::assertSame(3, substr_count($overview, '<a class="nav-tab'));
+            self::assertSame(4, substr_count($overview, '<a class="nav-tab'));
             self::assertStringContainsString('class="nav-tab-wrapper" aria-label="Bastion Security sections"', $overview);
             self::assertStringContainsString('tab=overview', $overview);
             self::assertStringContainsString('tab=hardening', $overview);
             self::assertStringContainsString('tab=headers', $overview);
+            self::assertStringContainsString('tab=rest-api', $overview);
             self::assertMatchesRegularExpression('/<a class="nav-tab nav-tab-active"[^>]+aria-current="page">/', $overview);
-            self::assertSame(11, substr_count($overview, '<details class="bastion-diagnostic">'));
+            self::assertSame(12, substr_count($overview, '<details class="bastion-diagnostic">'));
             self::assertStringNotContainsString('WordPress file editor lock', $overview);
             self::assertStringNotContainsString('HTTP security header preset', $overview);
 
@@ -94,6 +98,7 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('WordPress file editor lock', $hardening);
             self::assertStringContainsString('Login Protection', $hardening);
             self::assertStringContainsString('XML-RPC Pingback Protection', $hardening);
+            self::assertStringNotContainsString('REST Route Controls', $hardening);
             self::assertStringContainsString('Plugin activity email alerts', $hardening);
             self::assertStringContainsString('Administrator account alerts', $hardening);
             self::assertTrue(strpos($hardening, 'WordPress file editor lock') < strpos($hardening, 'Login Protection'));
@@ -107,16 +112,40 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('HTTP security header policies', $headers);
             self::assertStringNotContainsString('<summary class="bastion-diagnostic-summary">', $headers);
             self::assertStringNotContainsString('WordPress file editor lock', $headers);
+
+            $restApi = $this->renderTab('rest-api');
+            self::assertStringContainsString('REST Route Controls', $restApi);
+            self::assertStringContainsString('name="rules[]"', $restApi);
+            self::assertStringNotContainsString('WordPress file editor lock', $restApi);
+            self::assertStringNotContainsString('HTTP security header policies', $restApi);
+        }
+
+        public function testOnlyRestApiTabLoadsTheActiveCatalog(): void
+        {
+            $observations = ['catalog_loads' => 0];
+            foreach (['overview', 'hardening', 'headers'] as $tab) {
+                $_GET['tab'] = $tab;
+                ob_start();
+                $this->dashboard(observations: $observations)->render();
+                ob_end_clean();
+            }
+            self::assertSame(0, $observations['catalog_loads']);
+
+            $_GET['tab'] = 'rest-api';
+            ob_start();
+            $this->dashboard(observations: $observations)->render();
+            ob_end_clean();
+            self::assertSame(1, $observations['catalog_loads']);
         }
 
         public function testUnknownAndMalformedTabsFallBackToOverview(): void
         {
-            self::assertSame(11, substr_count($this->renderTab('unknown'), '<details class="bastion-diagnostic">'));
+            self::assertSame(12, substr_count($this->renderTab('unknown'), '<details class="bastion-diagnostic">'));
             $_GET['tab'] = ['headers'];
             ob_start();
             $this->dashboard()->render();
             $html = (string) ob_get_clean();
-            self::assertSame(11, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(12, substr_count($html, '<details class="bastion-diagnostic">'));
             self::assertStringNotContainsString('HTTP security header preset', $html);
         }
 
@@ -127,9 +156,9 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('Total diagnostics', $html);
             self::assertStringContainsString('Good', $html);
             self::assertStringContainsString('Needs attention', $html);
-            self::assertStringContainsString('<span>Total diagnostics</span><strong>11</strong>', $html);
+            self::assertStringContainsString('<span>Total diagnostics</span><strong>12</strong>', $html);
             self::assertStringContainsString('<span>Good</span><strong>3</strong>', $html);
-            self::assertStringContainsString('<span>Needs attention</span><strong>8</strong>', $html);
+            self::assertStringContainsString('<span>Needs attention</span><strong>9</strong>', $html);
             self::assertStringContainsString('site-health.php', $html);
             self::assertStringNotContainsString('Not assessed count', $html);
         }
@@ -152,7 +181,7 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringNotContainsString('file-editor preference was updated', $hardening);
         }
 
-            public function testDashboardRendersElevenBastionResultsAndNativeSiteHealthLink(): void
+            public function testDashboardRendersTwelveBastionResultsAndNativeSiteHealthLink(): void
         {
             $dashboard = $this->dashboard();
 
@@ -160,12 +189,13 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard->render();
             $html = (string) ob_get_clean();
 
-            self::assertSame(11, substr_count($html, '<details class="bastion-diagnostic">'));
-            self::assertSame(11, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
+            self::assertSame(12, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(12, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
             self::assertStringContainsString('HTTPS and admin transport posture', $html);
             self::assertStringContainsString('File editor posture', $html);
             self::assertStringContainsString('Login Protection', $html);
             self::assertStringContainsString('XML-RPC Pingback Protection', $html);
+            self::assertStringContainsString('REST Route Controls', $html);
             self::assertStringContainsString('Plugin activity email alerts', $html);
             self::assertStringContainsString('Administrator account alerts', $html);
             self::assertStringContainsString('Security header preset', $html);
@@ -178,7 +208,8 @@ namespace BastionSecurityWP\Tests\Unit {
                 < strpos($html, 'File editor posture')
                 && strpos($html, 'File editor posture') < strpos($html, 'Login Protection')
                 && strpos($html, 'Login Protection') < strpos($html, 'XML-RPC Pingback Protection')
-                && strpos($html, 'XML-RPC Pingback Protection') < strpos($html, 'Plugin activity email alerts')
+                && strpos($html, 'XML-RPC Pingback Protection') < strpos($html, 'REST Route Controls')
+                && strpos($html, 'REST Route Controls') < strpos($html, 'Plugin activity email alerts')
                 && strpos($html, 'Plugin activity email alerts') < strpos($html, 'Administrator account alerts')
                 && strpos($html, 'Administrator account alerts') < strpos($html, 'Security header preset')
                 && strpos($html, 'Security header preset') < strpos($html, 'File modification posture')
@@ -199,8 +230,8 @@ namespace BastionSecurityWP\Tests\Unit {
             $this->dashboard()->render();
             $html = (string) ob_get_clean();
 
-            self::assertSame(11, substr_count($html, '<details class="bastion-diagnostic">'));
-            self::assertSame(11, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
+            self::assertSame(12, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(12, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
             self::assertStringNotContainsString('<details class="bastion-diagnostic" open', $html);
             self::assertDoesNotMatchRegularExpression('/<details\b[^>]*\bopen\b/i', $html);
             self::assertStringContainsString('class="bastion-diagnostic-badge bastion-diagnostic-badge--good">Good</span>', $html);
@@ -292,7 +323,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard->render();
             $html = (string) ob_get_clean();
 
-            self::assertCount(22, $sanitizedFragments);
+            self::assertCount(24, $sanitizedFragments);
             self::assertStringNotContainsString('<script>', $html);
             self::assertStringContainsString('Not assessed', $html);
             self::assertStringContainsString('site-health.php', $html);
@@ -314,6 +345,7 @@ namespace BastionSecurityWP\Tests\Unit {
             bool $externalDefined = false,
             bool $multisite = false,
             bool $authorized = true,
+            ?array &$observations = null,
         ): SecurityDashboard {
             $values = [
                 'is_ssl' => true,
@@ -375,6 +407,24 @@ namespace BastionSecurityWP\Tests\Unit {
                 static function (): void {},
                 static fn (): string => 'POST',
             );
+            $restRouteControlsPolicy = new RestRouteControlsPolicy(static fn (): bool => false);
+            $restRouteCatalog = new RestRouteCatalog(static function () use (&$observations): object {
+                $observations['catalog_loads'] = ($observations['catalog_loads'] ?? 0) + 1;
+                return new class {
+                public function get_routes(): array { return ['/wp/v2/posts/(?P<id>[\\d]+)' => [['methods' => ['GET' => true]]]]; }
+                    public function get_route_options(string $route): array { return ['namespace' => 'wp/v2']; }
+                };
+            });
+            $restRouteControlsAdmin = new RestRouteControlsAdmin(
+                $restRouteControlsPolicy,
+                $restRouteCatalog,
+                static fn (string $capability): bool => $capability === 'manage_options',
+                static fn (string $nonce, string $action): bool => true,
+                static fn (string $url): bool => true,
+                static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
+                static function (): void {},
+                static fn (): string => 'POST',
+            );
             $pluginActivityAlertPolicy = new PluginActivityAlertPolicy(
                 static fn (): array => ['enabled' => false, 'recipients' => []],
                 validateEmail: static fn (string $email): bool => true,
@@ -423,6 +473,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 pluginActivityAlertPolicy: $pluginActivityAlertPolicy,
                 administratorAccountAlertPolicy: $administratorAccountAlertPolicy,
                 xmlRpcPingbackPolicy: $xmlRpcPingbackPolicy,
+                restRouteControlsPolicy: $restRouteControlsPolicy,
             );
 
             return new SecurityDashboard(
@@ -431,6 +482,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 $securityHeaders,
                 $loginAdmin,
                 $xmlRpcPingbackAdmin,
+                $restRouteControlsAdmin,
                 $pluginActivityAlertAdmin,
                 $administratorAccountAlertAdmin,
                 static fn (string $capability): bool => $authorized && $capability === 'manage_options',

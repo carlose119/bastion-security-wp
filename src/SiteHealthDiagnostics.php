@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BastionSecurityWP;
 
 use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
+use BastionSecurityWP\Security\RestRouteControlsPolicy;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\PluginActivityAlertPolicy;
@@ -31,6 +32,7 @@ final class SiteHealthDiagnostics
         private readonly ?PluginActivityAlertPolicy $pluginActivityAlertPolicy = null,
         private readonly ?AdministratorAccountAlertPolicy $administratorAccountAlertPolicy = null,
         private readonly ?XmlRpcPingbackPolicy $xmlRpcPingbackPolicy = null,
+        private readonly ?RestRouteControlsPolicy $restRouteControlsPolicy = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
@@ -78,6 +80,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_xmlrpc_pingback_protection' => [
                 'label' => 'Bastion: XML-RPC Pingback Protection',
                 'test' => $this->xmlRpcPingbackProtection(...),
+            ],
+            'bastion_security_wp_rest_route_controls' => [
+                'label' => 'Bastion: REST Route Controls',
+                'test' => $this->restRouteControls(...),
             ],
             'bastion_security_wp_plugin_activity_alerts' => [
                 'label' => 'Bastion: Plugin activity email alerts',
@@ -214,6 +220,36 @@ final class SiteHealthDiagnostics
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: XML-RPC Pingback Protection');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function restRouteControls(): array
+    {
+        try {
+            $state = $this->restRouteControlsPolicy?->state()
+                ?? ['assessed' => false, 'rules' => []];
+            if (! $state['assessed']) {
+                return $this->result(
+                    DiagnosticStatus::Recommended,
+                    'Bastion: REST Route Controls',
+                    'Evidence: The per-site REST Route Controls configuration could not be read.',
+                    'Meaning: Not assessed. Bastion makes no claim about REST route-template blocking.',
+                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Bastion Security > REST API.',
+                );
+            }
+
+            $count = count($state['rules']);
+
+            return $this->result(
+                $count > 0 ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                'Bastion: REST Route Controls',
+                sprintf('Evidence: The readable per-site configuration has %d selected REST route template %s.', $count, $count === 1 ? 'rule' : 'rules'),
+                'Meaning: A Good result means only that 1–100 rules are readable. This diagnostic does not load the active catalog, reveal patterns, prove final enforcement, hide routes, or disable all REST.',
+                'Remediation: Review compatibility and selected methods under Tools > Bastion Security > REST API, then verify required API clients independently.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed('Bastion: REST Route Controls');
         }
     }
 
@@ -404,6 +440,7 @@ final class SiteHealthDiagnostics
                 'Bastion: File editor posture' => 'file_editor',
                 'Bastion: Login Protection' => 'login_protection',
                 'Bastion: XML-RPC Pingback Protection' => 'xmlrpc_pingback_protection',
+                'Bastion: REST Route Controls' => 'rest_route_controls',
                 'Bastion: Plugin activity email alerts' => 'plugin_activity_alerts',
                 'Bastion: Administrator account alerts' => 'administrator_account_alerts',
                 'Bastion: Security header preset' => 'security_headers',

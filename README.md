@@ -1,6 +1,6 @@
 # Bastion Security WP
 
-Bastion Security WP provides focused WordPress security posture diagnostics and six reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
+Bastion Security WP provides focused WordPress security posture diagnostics and seven reversible security tools: five under **Hardening**, plus dedicated **Security headers** and **REST API** tools. It reports evidence, not a guarantee of invulnerability.
 
 ## Quick navigation
 
@@ -8,15 +8,16 @@ Open **Tools > Bastion Security** as an administrator with `manage_options`, the
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Summary counts, the eleven Bastion diagnostics, and a link to native WordPress Site Health. |
-| **Hardening** | The reversible WordPress file-editor lock, opt-in Login Protection, opt-in XML-RPC Pingback Protection, plugin activity email alerts, and Administrator Account Alerts. |
+| **Overview** | Summary counts, the twelve Bastion diagnostics, and a link to native WordPress Site Health. |
+| **Hardening** | Five reversible tools: the WordPress file-editor lock, Login Protection, XML-RPC Pingback Protection, plugin activity email alerts, and Administrator Account Alerts. |
 | **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
+| **REST API** | Active registered route-template catalog, method checkboxes, selected/stale state, impact guidance, and clear-all rollback. |
 
 Only the active tab is rendered. Unknown or malformed tab values fall back to **Overview**.
 
 ## Safe activation path
 
-1. Review the eleven diagnostics on **Overview**.
+1. Review the twelve diagnostics on **Overview**.
 2. Open **Security headers**, select the conservative baseline, and choose **Enable selected**.
 3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
 4. Select only the optional groups you intend to enable. One aggregate acknowledgement covers the selected high-impact groups; it is not required for the baseline or `legacy_cross_domain` alone.
@@ -24,19 +25,20 @@ Only the active tab is rendered. Unknown or malformed tab values fall back to **
 
 ## Current scope
 
-The plugin adds eleven deterministic direct tests to WordPress Site Health, in stable order:
+The plugin adds twelve deterministic direct tests to WordPress Site Health, in stable order:
 
 1. HTTPS and admin transport posture.
 2. File editor posture.
 3. Login Protection setting and limitations.
 4. XML-RPC Pingback Protection setting and limitations.
-5. Plugin activity email alert configuration.
-6. Administrator Account Alerts configuration.
-7. Security header preset preference.
-8. File modification and update posture.
-9. Runtime compatibility notice.
-10. Read-only pending plugin-update compatibility.
-11. Read-only REST surface inventory.
+5. REST Route Controls configuration and limitations.
+6. Plugin activity email alert configuration.
+7. Administrator Account Alerts configuration.
+8. Security header preset preference.
+9. File modification and update posture.
+10. Runtime compatibility notice.
+11. Read-only pending plugin-update compatibility.
+12. Read-only REST surface inventory.
 
 The assessments remain request-local and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation. The Bastion dashboard presents the same results with Site Health-inspired, accessible `details`/`summary` markup and links to native WordPress Site Health for the full suite.
 
@@ -111,6 +113,26 @@ On multisite, the option remains local to the current site. Bastion does not cal
 2. Enable XML-RPC Pingback Protection and confirm its diagnostic changes to **Good**, meaning only that the setting is enabled.
 3. Verify the site's authenticated XML-RPC, REST, and Application Password workflows that must remain available, and inspect final headers at every serving edge.
 4. Disable the setting to stop Bastion filtering. Components other than Bastion may still remove the methods or header, so disabling cannot restore their changes.
+
+### REST Route Controls
+
+Open **Tools > Bastion Security > REST API** to load the active WordPress REST registry and select route-template/method pairs with checkboxes. The catalog includes effective core, plugin, hidden, and non-index routes registered for the current request. Namespaces are collapsed by default, selected namespaces open automatically, and browser Find is the initial search path. Unsupported-only templates remain visible with no configurable methods.
+
+Catalog loading is intentionally active and admin-only. Calling `rest_get_server()->get_routes()` can initialize the request-local REST server, fire `rest_api_init` and `rest_endpoints`, and materialize route options. It does not execute endpoint callbacks or permission callbacks. Overview, Hardening, Security headers, Site Health, passive REST inventory, and request-time policy enforcement never load this catalog.
+
+The supported methods are `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, and `DELETE`; `OPTIONS` is intentionally omitted. When a template registers `GET`, the catalog also shows synthesized `HEAD` to reflect WordPress core fallback, but the two remain independent selections. At most 100 method/template rules can be selected.
+
+Templates are preserved exactly as registered and matched using WordPress-equivalent anchored, case-insensitive route regex semantics. A dynamic template such as `/wp/v2/posts/(?P<id>[\d]+)` therefore blocks every matching concrete post URL for its selected method. Users cannot submit arbitrary patterns, wildcards, or namespace-prefix rules: each saved selection must belong to the current catalog or be a previously stored stale rule.
+
+A match returns HTTP 403 with `bastion_rest_route_disabled` before permission and endpoint callbacks. WordPress may already have completed authentication, validation, and sanitization. The block applies to **all users and integrations**, including administrators, cookie-authenticated requests, and Application Password clients. There are no identity or capability exemptions.
+
+Selected rules that disappear from the active registry are shown in a separate open stale group. Keep them selected to preserve them or uncheck them to remove them. Adding any rule requires the compatibility acknowledgement; removal-only, equal, and empty saves do not. Only checked values are submitted, and invalid, duplicate, unknown, tampered, or oversized submissions reject the whole save.
+
+Routes remain registered and discoverable because Bastion does not filter `rest_endpoints` or remove route metadata. Earlier `rest_pre_dispatch` responses, `OPTIONS`, later or after-filters, direct PHP callback calls, server/proxy/CDN/cache responses, and non-REST code are outside the guarantee. This is not a global REST switch, WAF, firewall, logger, rate limiter, or DDoS control. Application Password, JSONP, XML-RPC, cron, AJAX, and endpoint registration behavior are unchanged.
+
+The canonical option is `bastion_security_wp_rest_route_controls`, with schema version 1 and sorted `method`/`route_pattern` rules. Missing state is an assessed empty configuration. Malformed, unreadable, noncanonical, or non-compiling state is **Not assessed** and enforcement fails open. Site Health reports only the readable selected-rule count and never loads the catalog or reveals patterns.
+
+Use the distinct **Clear all REST Route Controls** form for emergency rollback. It does not load the catalog, so it remains available when discovery fails. Keep a tested non-REST recovery path able to clear `bastion_security_wp_rest_route_controls` if authenticated REST clients are blocked. Deactivating the plugin stops enforcement but preserves the option.
 
 ### Plugin activity email alerts
 
@@ -211,7 +233,7 @@ Output is escaped, capped at 100 deterministically sorted routes, and reports om
 
 ## Explicit non-goals
 
-Bastion includes no public mutation endpoint, REST policy, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. Alerting is limited to the two independent, opt-in tools described above: plugin installation/activation notices and administrator account lifecycle notices. The settings UI and database writes are limited to the Tools page and plugin-owned file-editor preference, Login Protection configuration/metrics/transients, plugin activity alert configuration, Administrator Account Alerts configuration, XML-RPC pingback preference, header baseline, and enabled-group state. Administrator Account Alerts add no enforcement, role blocking, account rollback, logs, counters, history, retries, queues, REST/AJAX/cron endpoints, network settings, IP capture, or user-agent capture. Mutations require WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
+Bastion includes no public mutation endpoint, user-authored regex/wildcard/namespace-prefix REST policy, global REST shutdown, route removal, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. Alerting is limited to the two independent, opt-in tools described above: plugin installation/activation notices and administrator account lifecycle notices. The settings UI and database writes are limited to the Tools page and plugin-owned file-editor preference, Login Protection configuration/metrics/transients, plugin activity alert configuration, Administrator Account Alerts configuration, XML-RPC pingback preference, REST Route Controls rules, header baseline, and enabled-group state. Administrator Account Alerts add no enforcement, role blocking, account rollback, logs, counters, history, retries, queues, REST/AJAX/cron endpoints, network settings, IP capture, or user-agent capture. Mutations require WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
 
 ## Compatibility target
 
@@ -250,9 +272,10 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 - **File-editor lock:** open **Tools > Bastion Security > Hardening** and disable it to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
 - **Login Protection:** open **Tools > Bastion Security > Hardening** and disable it. Disabling advances the generation and invalidates prior temporary blocks; aggregate metrics remain. Use **Reset temporary blocks** to invalidate blocks without disabling or clearing metrics.
 - **XML-RPC Pingback Protection:** open **Tools > Bastion Security > Hardening** and disable it. Bastion stops removing the two pingback methods and WordPress-filtered `X-Pingback` headers on later requests, but it cannot restore removals made by another component or headers outside `wp_headers`.
+- **REST Route Controls:** open **Tools > Bastion Security > REST API** and use the separate **Clear all REST Route Controls** action. This non-REST admin-post rollback does not load the catalog, so it remains available if catalog loading fails. Bastion stops blocking configured routes on later requests, but clearing its rules cannot restore behavior blocked by another component.
 - **Plugin activity email alerts:** open **Tools > Bastion Security > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; already handed-off email cannot be recalled.
 - **Administrator Account Alerts:** open **Tools > Bastion Security > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; it does not reverse account changes or recall handed-off email. Delete `bastion_security_wp_administrator_account_alerts` to remove this saved configuration.
-- **Plugin:** deactivate Bastion to remove its eleven Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
+- **Plugin:** deactivate Bastion to remove its twelve Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
 
 Bastion creates no cron, queue, audit-log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.
 

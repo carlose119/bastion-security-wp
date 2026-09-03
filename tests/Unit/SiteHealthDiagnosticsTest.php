@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace BastionSecurityWP\Tests\Unit;
 
 use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
+    use BastionSecurityWP\Admin\RestRouteControlsAdmin;
 use BastionSecurityWP\Admin\PluginActivityAlertAdmin;
 use BastionSecurityWP\Admin\XmlRpcPingbackAdmin;
 use BastionSecurityWP\Bootstrap;
 use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
+    use BastionSecurityWP\Security\RestRouteControlsPolicy;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\PluginActivityAlertPolicy;
@@ -57,6 +59,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
             'bastion_security_wp_xmlrpc_pingback_protection',
+            'bastion_security_wp_rest_route_controls',
             'bastion_security_wp_plugin_activity_alerts',
             'bastion_security_wp_administrator_account_alerts',
             'bastion_security_wp_security_headers',
@@ -66,19 +69,20 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_rest_surface_inventory',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(12, array_unique(array_keys($tests['direct'])));
+        self::assertCount(13, array_unique(array_keys($tests['direct'])));
     }
 
-    public function testSharedReportListContainsExactlyElevenBastionDiagnosticsInStableOrder(): void
+    public function testSharedReportListContainsExactlyTwelveBastionDiagnosticsInStableOrder(): void
     {
         $results = $this->diagnostics()->reports();
 
-        self::assertCount(11, $results);
+        self::assertCount(12, $results);
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
             'bastion_security_wp_xmlrpc_pingback_protection',
+            'bastion_security_wp_rest_route_controls',
             'bastion_security_wp_plugin_activity_alerts',
             'bastion_security_wp_administrator_account_alerts',
             'bastion_security_wp_security_headers',
@@ -99,6 +103,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
             'bastion_security_wp_xmlrpc_pingback_protection',
+            'bastion_security_wp_rest_route_controls',
             'bastion_security_wp_plugin_activity_alerts',
             'bastion_security_wp_administrator_account_alerts',
             'bastion_security_wp_security_headers',
@@ -107,7 +112,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);
@@ -205,6 +210,39 @@ final class SiteHealthDiagnosticsTest extends TestCase
         );
         self::assertSame('recommended', $unassessed->xmlRpcPingbackProtection()['status']);
         self::assertStringContainsString('Not assessed', $unassessed->xmlRpcPingbackProtection()['description']);
+    }
+
+    public function testRestRouteControlsDiagnosticReportsOnlyReadableRuleCount(): void
+    {
+        $disabled = $this->diagnostics()->restRouteControls();
+        self::assertSame('recommended', $disabled['status']);
+        self::assertStringContainsString('0 selected REST route template rules', $disabled['description']);
+
+        $enabled = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            restRouteControlsPolicy: new RestRouteControlsPolicy(static fn (): array => [
+                'schema_version' => 1,
+                    'rules' => [
+                        ['method' => 'GET', 'route_pattern' => '/private-a'],
+                        ['method' => 'POST', 'route_pattern' => '/private-b'],
+                    ],
+            ]),
+        );
+        $result = $enabled->restRouteControls();
+        self::assertSame('good', $result['status']);
+        self::assertStringContainsString('2 selected REST route template rules', $result['description']);
+        self::assertStringNotContainsString('/private-a', $result['description']);
+        self::assertStringNotContainsString('/private-b', $result['description']);
+        self::assertStringContainsString('does not load the active catalog', $result['description']);
+
+        $unassessed = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            restRouteControlsPolicy: new RestRouteControlsPolicy(static fn (): array => ['unexpected' => true]),
+        );
+        self::assertSame('recommended', $unassessed->restRouteControls()['status']);
+        self::assertStringContainsString('Not assessed', $unassessed->restRouteControls()['description']);
     }
 
     public function testPluginActivityAlertDiagnosticReportsConfigurationWithoutClaimingDelivery(): void
@@ -329,6 +367,10 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString("admin_post_' . XmlRpcPingbackAdmin::POST_ACTION", $source);
         self::assertStringContainsString("add_filter('xmlrpc_methods', \$xmlRpcPingbackPolicy->filterMethods(...), PHP_INT_MAX, 1)", $source);
         self::assertStringContainsString("add_filter('wp_headers', \$xmlRpcPingbackPolicy->filterHeaders(...), PHP_INT_MAX, 1)", $source);
+        self::assertStringContainsString("add_filter('rest_request_before_callbacks', \$restRouteControlsPolicy->filterRequest(...), PHP_INT_MAX, 3)", $source);
+        self::assertStringNotContainsString("add_filter('wp_is_application_passwords_available'", $source);
+        self::assertStringNotContainsString("add_filter('rest_jsonp_enabled'", $source);
+        self::assertStringContainsString("admin_post_' . RestRouteControlsAdmin::POST_ACTION", $source);
         self::assertStringContainsString("add_action('upgrader_process_complete', \$pluginActivityAlertPolicy->handleUpgraderProcessComplete(...), 10, 2)", $source);
         self::assertStringContainsString("add_action('activated_plugin', \$pluginActivityAlertPolicy->handleActivatedPlugin(...), 10, 2)", $source);
         self::assertStringContainsString("add_action('add_user_role', \$administratorAccountAlertPolicy->handleAddUserRole(...), 10, 2)", $source);
@@ -415,6 +457,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
             securityHeadersPolicy: new SecurityHeadersPolicy(static fn (): bool => false, static fn (): bool => true),
             xmlRpcPingbackPolicy: new XmlRpcPingbackPolicy(static fn (): bool => false),
+            restRouteControlsPolicy: new RestRouteControlsPolicy(static fn (): bool => false),
         );
     }
 }

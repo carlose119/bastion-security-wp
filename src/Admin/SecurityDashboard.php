@@ -12,7 +12,7 @@ final class SecurityDashboard
     private const CAPABILITY = 'manage_options';
 
     /** @var list<string> */
-    private const TABS = ['overview', 'hardening', 'headers'];
+    private const TABS = ['overview', 'hardening', 'headers', 'rest-api'];
 
     private Closure $currentUserCan;
     private Closure $adminUrl;
@@ -24,6 +24,7 @@ final class SecurityDashboard
         private readonly SecurityHeadersAdmin $securityHeadersAdmin,
         private readonly LoginProtectionAdmin $loginProtectionAdmin,
         private readonly XmlRpcPingbackAdmin $xmlRpcPingbackAdmin,
+        private readonly RestRouteControlsAdmin $restRouteControlsAdmin,
         private readonly PluginActivityAlertAdmin $pluginActivityAlertAdmin,
         private readonly AdministratorAccountAlertAdmin $administratorAccountAlertAdmin,
         ?callable $currentUserCan = null,
@@ -64,6 +65,9 @@ final class SecurityDashboard
         $xmlRpcPingbackNotice = isset($_GET['bastion_xmlrpc_pingback_notice']) && is_string($_GET['bastion_xmlrpc_pingback_notice'])
             ? $_GET['bastion_xmlrpc_pingback_notice']
             : '';
+        $restRouteControlsNotice = isset($_GET['bastion_rest_route_controls_notice']) && is_string($_GET['bastion_rest_route_controls_notice'])
+            ? $_GET['bastion_rest_route_controls_notice']
+            : '';
         $pluginAlertNotice = isset($_GET['bastion_plugin_alert_notice']) && is_string($_GET['bastion_plugin_alert_notice'])
             ? $_GET['bastion_plugin_alert_notice']
             : '';
@@ -85,6 +89,9 @@ final class SecurityDashboard
         } elseif ($tab === 'headers') {
             echo '<p class="bastion-tab-introduction">' . \esc_html__('Review exact header policies, select bounded changes, and verify the final response at every serving edge.', 'bastion-security-wp') . '</p>';
             $this->securityHeadersAdmin->renderToolSection($notice);
+        } elseif ($tab === 'rest-api') {
+            echo '<p class="bastion-tab-introduction">' . \esc_html__('Review the active REST route-template catalog and choose method-level blocks.', 'bastion-security-wp') . '</p>';
+            $this->restRouteControlsAdmin->renderCatalog($restRouteControlsNotice);
         } else {
             $this->renderOverview();
         }
@@ -148,6 +155,7 @@ final class SecurityDashboard
             'overview' => \esc_html__('Overview', 'bastion-security-wp'),
             'hardening' => \esc_html__('Hardening', 'bastion-security-wp'),
             'headers' => \esc_html__('Security headers', 'bastion-security-wp'),
+            'rest-api' => \esc_html__('REST API', 'bastion-security-wp'),
         };
     }
 
@@ -180,6 +188,7 @@ final class SecurityDashboard
 .bastion-security-dashboard .bastion-diagnostic-action { margin-top: 16px; }
 .bastion-security-dashboard .bastion-login-protection,
 .bastion-security-dashboard .bastion-xmlrpc-pingback-protection,
+.bastion-security-dashboard .bastion-rest-route-controls,
 .bastion-security-dashboard .bastion-plugin-activity-alerts,
 .bastion-security-dashboard .bastion-administrator-account-alerts { margin-top: 28px; padding-top: 8px; border-top: 2px solid #c3c4c7; }
 .bastion-security-dashboard .bastion-login-reset { max-width: 72ch; margin-top: 20px; padding: 14px 16px; border-left: 4px solid #dba617; background: #fff; }
