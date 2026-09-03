@@ -1,6 +1,6 @@
 # Bastion Security WP
 
-Bastion Security WP provides focused WordPress security posture diagnostics and three reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
+Bastion Security WP provides focused WordPress security posture diagnostics and four reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
 
 ## Quick navigation
 
@@ -8,15 +8,15 @@ Open **Tools > Bastion Security** as an administrator with `manage_options`, the
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Summary counts, the eight Bastion diagnostics, and a link to native WordPress Site Health. |
-| **Hardening** | The reversible WordPress file-editor lock and opt-in Login Protection. |
+| **Overview** | Summary counts, the nine Bastion diagnostics, and a link to native WordPress Site Health. |
+| **Hardening** | The reversible WordPress file-editor lock, opt-in Login Protection, and opt-in plugin activity email alerts. |
 | **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
 
 Only the active tab is rendered. Unknown or malformed tab values fall back to **Overview**.
 
 ## Safe activation path
 
-1. Review the eight diagnostics on **Overview**.
+1. Review the nine diagnostics on **Overview**.
 2. Open **Security headers**, select the conservative baseline, and choose **Enable selected**.
 3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
 4. Select only the optional groups you intend to enable. One aggregate acknowledgement covers the selected high-impact groups; it is not required for the baseline or `legacy_cross_domain` alone.
@@ -24,16 +24,17 @@ Only the active tab is rendered. Unknown or malformed tab values fall back to **
 
 ## Current scope
 
-The plugin adds eight deterministic direct tests to WordPress Site Health, in stable order:
+The plugin adds nine deterministic direct tests to WordPress Site Health, in stable order:
 
 1. HTTPS and admin transport posture.
 2. File editor posture.
 3. Login Protection setting and limitations.
-4. Security header preset preference.
-5. File modification and update posture.
-6. Runtime compatibility notice.
-7. Read-only pending plugin-update compatibility.
-8. Read-only REST surface inventory.
+4. Plugin activity email alert configuration.
+5. Security header preset preference.
+6. File modification and update posture.
+7. Runtime compatibility notice.
+8. Read-only pending plugin-update compatibility.
+9. Read-only REST surface inventory.
 
 The assessments remain request-local and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation. The Bastion dashboard presents the same results with Site Health-inspired, accessible `details`/`summary` markup and links to native WordPress Site Health for the full suite.
 
@@ -86,6 +87,24 @@ Enforcement uses expiring WordPress transients and read-modify-write updates. Tr
 2. Enable Login Protection and confirm its diagnostic changes to **Good**, meaning only that the setting is enabled.
 3. Use a disposable non-administrator identity for any failed-login check, and stop before reaching a threshold unless you intentionally have recovery access.
 4. Confirm **Reset temporary blocks** preserves metrics, then disable Login Protection to verify rollback.
+
+### Plugin activity email alerts
+
+Plugin activity email alerts are opt-in and configured per-site under **Tools > Bastion Security > Hardening**. Select **Enable plugin activity email alerts**, enter at least one recipient separated by a comma or newline, and save. Every token must be a valid email address or Bastion rejects the entire write. Duplicate addresses are removed case-insensitively while the first valid spelling is preserved. Bastion never silently falls back to the WordPress administration email.
+
+For recipient privacy, Bastion sends one plain-text email per recipient with one `wp_mail` call each; addresses are not placed together in a shared recipient field. Each message is limited to the event, plugin display name, version, basename, site name and URL, WordPress-local timestamp, and—for activation—the network-wide Yes/No value. Metadata may be unavailable, in which case the message uses a safe fallback.
+
+The event semantics are exact:
+
+- **Plugin installations:** observed through WordPress's completed upgrader hook only for plugin install actions. Plugin updates are excluded.
+- **Activations:** every observed successful plugin activation produces an alert and records whether WordPress reported it as network-wide.
+- **Install plus activation:** installing and then activating a plugin intentionally produces two separate notifications. There is no cross-event deduplication or exactly-once claim.
+
+On multisite, configuration remains per-site. Bastion does not call `switch_to_blog`, query other sites, or fan out notifications. A network-wide activation produces at most one email per configured recipient from the current site context and marks the activation as network-wide.
+
+Enabled means Bastion will attempt to send. It does not prove delivery: delivery depends on `wp_mail` and the site's mail transport. Bastion must be active when WordPress emits a supported hook. There are no historical events, no event-type toggles, no queue, no retry, no delivery receipt, no audit log, no attachments, and no HTML email. Hook observability depends on the installation or activation path reaching the standard WordPress hooks, and plugin metadata may be unavailable. Mail failures and integration errors fail open without reverting the plugin lifecycle or changing configuration.
+
+To roll back, clear the enable checkbox and save. Disabling preserves the configured recipient list for a later re-enable and stops future Bastion attempts; it cannot retract email already handed to the mail transport.
 
 ### HTTP security-header policies
 
@@ -148,7 +167,7 @@ Output is escaped, capped at 100 deterministically sorted routes, and reports om
 
 ## Explicit non-goals
 
-Bastion includes no public mutation endpoint, REST policy, file integrity monitoring, audit log, alerts, cron tasks, filesystem writes, permanent login locks, allowlists, or email notifications. The only settings UI and database writes are the Tools page and the plugin-owned file-editor, Login Protection configuration/metrics/transients, header-baseline, and enabled-group state described above. Mutations use WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
+Bastion includes no public mutation endpoint, REST policy, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. The only alerting is the narrowly scoped, opt-in plugin installation and activation email tool described above. The only settings UI and database writes are the Tools page and the plugin-owned file-editor, Login Protection configuration/metrics/transients, plugin activity email alert configuration, header-baseline, and enabled-group state described above. Mutations use WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
 
 ## Compatibility target
 
@@ -186,9 +205,10 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 - **Header policies:** open **Tools > Bastion Security > Security headers**, then disable selected policies, use an individual control, or use the isolated **Disable all Bastion headers** action. Recheck the displayed state if a two-option operation reports a partial failure. Bastion immediately stops future emission for preferences that were disabled. HSTS may remain in browsers for up to 24 hours after its last received policy. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
 - **File-editor lock:** open **Tools > Bastion Security > Hardening** and disable it to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
 - **Login Protection:** open **Tools > Bastion Security > Hardening** and disable it. Disabling advances the generation and invalidates prior temporary blocks; aggregate metrics remain. Use **Reset temporary blocks** to invalidate blocks without disabling or clearing metrics.
-- **Plugin:** deactivate Bastion to remove its eight Site Health tests and future runtime enforcement. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
+- **Plugin activity email alerts:** open **Tools > Bastion Security > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; already handed-off email cannot be recalled.
+- **Plugin:** deactivate Bastion to remove its nine Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
 
-Bastion creates no cron, log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.
+Bastion creates no cron, queue, audit-log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.
 
 ## License
 

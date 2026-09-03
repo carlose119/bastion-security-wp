@@ -6,6 +6,7 @@ namespace BastionSecurityWP;
 
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
+use BastionSecurityWP\Security\PluginActivityAlertPolicy;
 use BastionSecurityWP\Security\SecurityHeadersPolicy;
 use Closure;
 use Throwable;
@@ -25,6 +26,7 @@ final class SiteHealthDiagnostics
         private readonly ?SecurityHeadersPolicy $securityHeadersPolicy = null,
         ?PluginUpdateCompatibility $pluginUpdateCompatibility = null,
         private readonly ?LoginProtectionPolicy $loginProtectionPolicy = null,
+        private readonly ?PluginActivityAlertPolicy $pluginActivityAlertPolicy = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
@@ -68,6 +70,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_login_protection' => [
                 'label' => 'Bastion: Login Protection',
                 'test' => $this->loginProtection(...),
+            ],
+            'bastion_security_wp_plugin_activity_alerts' => [
+                'label' => 'Bastion: Plugin activity email alerts',
+                'test' => $this->pluginActivityAlerts(...),
             ],
             'bastion_security_wp_security_headers' => [
                 'label' => 'Bastion: Security header preset',
@@ -167,6 +173,30 @@ final class SiteHealthDiagnostics
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: Login Protection');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function pluginActivityAlerts(): array
+    {
+        try {
+            $state = $this->pluginActivityAlertPolicy?->state() ?? ['enabled' => false, 'recipients' => []];
+            $recipientCount = count($state['recipients']);
+
+            return $this->result(
+                $state['enabled'] ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                'Bastion: Plugin activity email alerts',
+                sprintf(
+                    'Evidence: The per-site plugin activity email alert setting is %s with %d configured %s.',
+                    $state['enabled'] ? 'enabled' : 'disabled',
+                    $recipientCount,
+                    $recipientCount === 1 ? 'recipient' : 'recipients',
+                ),
+                'Meaning: An enabled result means Bastion will attempt sends for observed plugin installations and successful activations; it does not prove delivery.',
+                'Remediation: Review recipients and event limitations under Tools > Bastion Security > Hardening, and verify the site wp_mail transport independently.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed('Bastion: Plugin activity email alerts');
         }
     }
 
@@ -297,6 +327,7 @@ final class SiteHealthDiagnostics
                 'Bastion: HTTPS and admin transport posture' => 'transport',
                 'Bastion: File editor posture' => 'file_editor',
                 'Bastion: Login Protection' => 'login_protection',
+                'Bastion: Plugin activity email alerts' => 'plugin_activity_alerts',
                 'Bastion: Security header preset' => 'security_headers',
                 'Bastion: File modification posture' => 'file_modifications',
                 default => 'runtime',

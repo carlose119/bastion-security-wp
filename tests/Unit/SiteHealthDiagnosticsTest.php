@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace BastionSecurityWP\Tests\Unit;
 
+use BastionSecurityWP\Admin\PluginActivityAlertAdmin;
 use BastionSecurityWP\Bootstrap;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
+use BastionSecurityWP\Security\PluginActivityAlertPolicy;
 use BastionSecurityWP\Security\SecurityHeadersPolicy;
 use BastionSecurityWP\SiteHealthDiagnostics;
 use PHPUnit\Framework\TestCase;
@@ -50,6 +52,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
+            'bastion_security_wp_plugin_activity_alerts',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
@@ -57,18 +60,19 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_rest_surface_inventory',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(9, array_unique(array_keys($tests['direct'])));
+        self::assertCount(10, array_unique(array_keys($tests['direct'])));
     }
 
-    public function testSharedReportListContainsExactlyEightBastionDiagnosticsInStableOrder(): void
+    public function testSharedReportListContainsExactlyNineBastionDiagnosticsInStableOrder(): void
     {
         $results = $this->diagnostics()->reports();
 
-        self::assertCount(8, $results);
+        self::assertCount(9, $results);
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
+            'bastion_security_wp_plugin_activity_alerts',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
@@ -86,13 +90,14 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
             'bastion_security_wp_login_protection',
+            'bastion_security_wp_plugin_activity_alerts',
             'bastion_security_wp_security_headers',
             'bastion_security_wp_file_modifications',
             'bastion_security_wp_runtime',
             'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);
@@ -163,6 +168,30 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString('does not guarantee', $enabled->loginProtection()['description']);
     }
 
+    public function testPluginActivityAlertDiagnosticReportsConfigurationWithoutClaimingDelivery(): void
+    {
+        $disabled = $this->diagnostics()->pluginActivityAlerts();
+        self::assertSame('recommended', $disabled['status']);
+        self::assertStringContainsString('disabled with 0 configured recipients', $disabled['description']);
+
+        $policy = new PluginActivityAlertPolicy(
+            static fn (): array => ['enabled' => true, 'recipients' => ['one@example.test', 'two@example.test']],
+            validateEmail: static fn (string $email): bool => true,
+        );
+        $diagnostics = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            pluginActivityAlertPolicy: $policy,
+        );
+        $result = $diagnostics->pluginActivityAlerts();
+
+        self::assertSame('good', $result['status']);
+        self::assertStringContainsString('enabled with 2 configured recipients', $result['description']);
+        self::assertStringContainsString('attempt sends', $result['description']);
+        self::assertStringContainsString('does not prove delivery', $result['description']);
+        self::assertStringContainsString('Tools > Bastion Security > Hardening', $result['actions']);
+    }
+
     public function testSecurityHeaderDiagnosticReportsBaselineAndActiveGroupsWithoutClaimingDelivery(): void
     {
         $disabled = $this->diagnostics()->securityHeaders();
@@ -220,6 +249,9 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString("add_action('wp_login_failed', \$loginProtectionPolicy->recordFailure(...), 10, 2)", $source);
         self::assertStringContainsString("add_action('wp_login', \$loginProtectionPolicy->recordSuccess(...), 10, 2)", $source);
         self::assertStringContainsString("admin_post_' . LoginProtectionAdmin::POST_ACTION", $source);
+        self::assertStringContainsString("admin_post_' . PluginActivityAlertAdmin::POST_ACTION", $source);
+        self::assertStringContainsString("add_action('upgrader_process_complete', \$pluginActivityAlertPolicy->handleUpgraderProcessComplete(...), 10, 2)", $source);
+        self::assertStringContainsString("add_action('activated_plugin', \$pluginActivityAlertPolicy->handleActivatedPlugin(...), 10, 2)", $source);
         self::assertStringContainsString("add_filter('wp_headers'", $source);
         self::assertStringNotContainsString('header(', $source . $policySource);
         self::assertStringNotContainsString('send_headers', $source . $policySource);

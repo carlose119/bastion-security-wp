@@ -168,7 +168,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
 
             foreach ([
-                'eight Bastion diagnostics', 'Login Protection', '5 / 8 / 12', '50 / 100 / 200',
+                'nine Bastion diagnostics', 'Login Protection', '5 / 8 / 12', '50 / 100 / 200',
                 'HMAC SHA-256', 'Raw usernames', 'wp_authenticate()', 'XML-RPC',
                 'REST Application Password', 'REMOTE_ADDR', 'X-Forwarded-For', 'shared proxy',
                 'Transient eviction', 'read-modify-write', 'not a WAF', 'DDoS',

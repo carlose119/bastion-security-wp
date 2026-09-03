@@ -6,10 +6,12 @@ namespace BastionSecurityWP;
 
 use BastionSecurityWP\Admin\FileEditorAdmin;
 use BastionSecurityWP\Admin\LoginProtectionAdmin;
+use BastionSecurityWP\Admin\PluginActivityAlertAdmin;
 use BastionSecurityWP\Admin\SecurityDashboard;
 use BastionSecurityWP\Admin\SecurityHeadersAdmin;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
+use BastionSecurityWP\Security\PluginActivityAlertPolicy;
 use BastionSecurityWP\Security\SecurityHeadersPolicy;
 
 final class Bootstrap
@@ -38,11 +40,13 @@ final class Bootstrap
         $fileEditorPolicy->enforce();
         $securityHeadersPolicy = new SecurityHeadersPolicy();
         $loginProtectionPolicy = new LoginProtectionPolicy();
+        $pluginActivityAlertPolicy = new PluginActivityAlertPolicy();
 
         $siteHealth = new SiteHealthDiagnostics(
             fileEditorPolicy: $fileEditorPolicy,
             securityHeadersPolicy: $securityHeadersPolicy,
             loginProtectionPolicy: $loginProtectionPolicy,
+            pluginActivityAlertPolicy: $pluginActivityAlertPolicy,
         );
 
         if (function_exists('add_filter')) {
@@ -54,13 +58,17 @@ final class Bootstrap
         if (function_exists('add_action')) {
             $fileEditorAdmin = new FileEditorAdmin($fileEditorPolicy);
             $loginProtectionAdmin = new LoginProtectionAdmin($loginProtectionPolicy);
+            $pluginActivityAlertAdmin = new PluginActivityAlertAdmin($pluginActivityAlertPolicy);
             $securityHeadersAdmin = new SecurityHeadersAdmin($securityHeadersPolicy);
-            $dashboard = new SecurityDashboard($siteHealth, $fileEditorAdmin, $securityHeadersAdmin, $loginProtectionAdmin);
+            $dashboard = new SecurityDashboard($siteHealth, $fileEditorAdmin, $securityHeadersAdmin, $loginProtectionAdmin, $pluginActivityAlertAdmin);
             \add_action('wp_login_failed', $loginProtectionPolicy->recordFailure(...), 10, 2);
             \add_action('wp_login', $loginProtectionPolicy->recordSuccess(...), 10, 2);
+            \add_action('upgrader_process_complete', $pluginActivityAlertPolicy->handleUpgraderProcessComplete(...), 10, 2);
+            \add_action('activated_plugin', $pluginActivityAlertPolicy->handleActivatedPlugin(...), 10, 2);
             \add_action('admin_menu', $dashboard->registerPage(...));
             \add_action('admin_post_' . FileEditorAdmin::POST_ACTION, $fileEditorAdmin->handleRequest(...));
             \add_action('admin_post_' . LoginProtectionAdmin::POST_ACTION, $loginProtectionAdmin->handleRequest(...));
+            \add_action('admin_post_' . PluginActivityAlertAdmin::POST_ACTION, $pluginActivityAlertAdmin->handleRequest(...));
             \add_action('admin_post_' . SecurityHeadersAdmin::POST_ACTION, $securityHeadersAdmin->handleRequest(...));
         }
     }
