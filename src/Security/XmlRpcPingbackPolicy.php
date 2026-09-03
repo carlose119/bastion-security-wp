@@ -34,11 +34,15 @@ final class XmlRpcPingbackPolicy
             return ['assessed' => false, 'enabled' => false];
         }
 
-        if (! is_bool($value)) {
-            return ['assessed' => false, 'enabled' => false];
+        if (is_bool($value)) {
+            return ['assessed' => true, 'enabled' => $value];
         }
 
-        return ['assessed' => true, 'enabled' => $value];
+        if ($value === '1' || $value === '') {
+            return ['assessed' => true, 'enabled' => $value === '1'];
+        }
+
+        return ['assessed' => false, 'enabled' => false];
     }
 
     public function isEnabled(): bool

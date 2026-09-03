@@ -116,7 +116,7 @@ namespace BastionSecurityWP\Tests\Unit {
 
         public function testEnabledAndUnassessedStatesRenderTruthfullyWithAllowlistedNotices(): void
         {
-            $enabled = $this->admin(enabled: true);
+            $enabled = $this->admin(enabled: '1');
             ob_start();
             $enabled['admin']->renderToolSection('updated');
             $enabledHtml = (string) ob_get_clean();
@@ -139,7 +139,7 @@ namespace BastionSecurityWP\Tests\Unit {
             bool $authorized = true,
             bool $nonceValid = true,
             bool $writeSucceeds = true,
-            bool $enabled = false,
+            bool|string $enabled = false,
             bool $readThrows = false,
         ): array {
             $state = [
@@ -149,7 +149,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 'terminations' => 0,
             ];
             $policy = new XmlRpcPingbackPolicy(
-                static function () use (&$state, $readThrows): bool {
+                static function () use (&$state, $readThrows): mixed {
                     if ($readThrows) { throw new RuntimeException('private-reader-detail'); }
                     return $state['enabled'];
                 },

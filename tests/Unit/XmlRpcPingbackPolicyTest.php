@@ -77,6 +77,44 @@ final class XmlRpcPingbackPolicyTest extends TestCase
         }
     }
 
+    public function testWordPressRoundTripBooleanStringsAreAssessedAndSkipUnchangedWrites(): void
+    {
+        $writes = 0;
+        $enabled = new XmlRpcPingbackPolicy(
+            static fn (): string => '1',
+            static function (bool $value) use (&$writes): bool {
+                ++$writes;
+                return true;
+            },
+        );
+
+        self::assertSame(['assessed' => true, 'enabled' => true], $enabled->state());
+        self::assertSame('unchanged', $enabled->setEnabled(true));
+        self::assertSame(0, $writes);
+
+        $disabled = new XmlRpcPingbackPolicy(
+            static fn (): string => '',
+            static function (bool $value) use (&$writes): bool {
+                ++$writes;
+                return true;
+            },
+        );
+
+        self::assertSame(['assessed' => true, 'enabled' => false], $disabled->state());
+        self::assertSame('unchanged', $disabled->setEnabled(false));
+        self::assertSame(0, $writes);
+    }
+
+    public function testUnrelatedStringAndNumericFormsRemainUnassessed(): void
+    {
+        foreach (['enabled', 'true', '0', '2', '01', 'arbitrary', 0, 1, 2, -1] as $value) {
+            $policy = new XmlRpcPingbackPolicy(static fn (): mixed => $value);
+
+            self::assertSame(['assessed' => false, 'enabled' => false], $policy->state());
+            self::assertFalse($policy->isEnabled());
+        }
+    }
+
     public function testPersistenceIsIdempotentBoundedAndKeepsExceptionsPrivate(): void
     {
         $enabled = false;
