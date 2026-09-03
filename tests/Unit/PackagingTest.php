@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace BastionSecurityWP\Tests\Unit;
 
+use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use FilesystemIterator;
 use ZipArchive;
 
 final class PackagingTest extends TestCase
 {
-    private const ROOT = 'bastion-security-wp/';
+    private const ROOT = 'bastion-security/';
 
     private static string $archive;
     private static string $extracted;
@@ -20,9 +20,9 @@ final class PackagingTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         $root = dirname(__DIR__, 2);
-        exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/tools/build.php') . ' 2>&1', $output, $status);
-        self::assertSame(0, $status, implode(PHP_EOL, $output));
-        self::$archive = $root . '/.build/bastion-security-wp.zip';
+        self::runBuild($root);
+        self::$archive = $root . '/.build/bastion-security.zip';
+        self::assertFileExists(self::$archive);
         self::$extracted = sys_get_temp_dir() . '/bastion-package-' . bin2hex(random_bytes(6));
     }
 
@@ -44,29 +44,41 @@ final class PackagingTest extends TestCase
         rmdir(self::$extracted);
     }
 
-    public function testArchiveManifestHasOnlyTheProductionRoot(): void
+    public function testArchiveManifestMatchesTheProductionContract(): void
     {
-        $zip = new ZipArchive();
-        self::assertTrue($zip->open(self::$archive));
-        $entries = [];
+        $entries = self::archiveEntries();
 
-        for ($index = 0; $index < $zip->numFiles; $index++) {
-            $entries[] = $zip->getNameIndex($index);
-        }
-
-        $zip->close();
-        self::assertSame($entries, array_values(array_filter($entries, static fn (string $entry): bool => str_starts_with($entry, self::ROOT))));
+        self::assertSame($entries, array_values(array_filter(
+            $entries,
+            static fn (string $entry): bool => str_starts_with($entry, self::ROOT),
+        )));
         self::assertSame($entries, array_values(array_unique($entries)));
         $sorted = $entries;
         sort($sorted, SORT_STRING);
         self::assertSame($sorted, $entries);
 
-        foreach (['bastion-security-wp.php', 'src/Bootstrap.php', 'README.md', 'composer.json', 'composer.lock', 'vendor/autoload.php'] as $required) {
+        foreach (['bastion-security-wp.php', 'readme.txt', 'LICENSE', 'composer.json', 'src/Bootstrap.php', 'vendor/autoload.php'] as $required) {
             self::assertContains(self::ROOT . $required, $entries);
         }
 
+        $allowedTopLevel = ['LICENSE', 'bastion-security-wp.php', 'composer.json', 'readme.txt', 'src', 'vendor'];
+
         foreach ($entries as $entry) {
-            self::assertDoesNotMatchRegularExpression('~/(tests|\.git|\.github)(/|\.)|/phpunit\.~', $entry);
+            $relative = substr($entry, strlen(self::ROOT));
+            $segments = explode('/', $relative);
+            self::assertContains($segments[0], $allowedTopLevel, 'Unexpected top-level package entry: ' . $entry);
+
+            foreach ($segments as $segment) {
+                self::assertFalse(str_starts_with($segment, '.'), 'Hidden package path segment: ' . $entry);
+            }
+
+            self::assertDoesNotMatchRegularExpression(
+                '~(?:^|/)(?:README\.md|composer\.lock|tests|tools|\.github|\.atl|\.codegraph|phpunit\.xml\.dist)(?:/|$)~i',
+                $relative,
+            );
+            self::assertStringNotContainsString('\\', $entry);
+            self::assertStringNotContainsString('//', $entry);
+            self::assertDoesNotMatchRegularExpression('~(?:^|/)\.\.?(/|$)|(?:^|/)[A-Za-z]:~', $entry);
         }
 
         $lock = json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/composer.lock'), true, flags: JSON_THROW_ON_ERROR);
@@ -78,6 +90,84 @@ final class PackagingTest extends TestCase
                 $entries,
                 static fn (string $entry): bool => str_starts_with($entry, $directory),
             )), sprintf('Development package %s appeared at %s.', $package['name'], $directory));
+        }
+    }
+
+    public function testArchiveContainsOnlySanitizedProductionComposerMetadata(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $source = json_decode((string) file_get_contents($root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open(self::$archive));
+
+        try {
+            $contents = $zip->getFromName(self::ROOT . 'composer.json');
+            self::assertIsString($contents);
+            $production = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } finally {
+            $zip->close();
+        }
+
+        self::assertSame(
+            ['name', 'description', 'type', 'license', 'require', 'autoload'],
+            array_keys($production),
+        );
+
+        foreach (['name', 'description', 'type', 'license', 'require', 'autoload'] as $field) {
+            self::assertSame($source[$field], $production[$field], 'Unexpected production Composer field: ' . $field);
+        }
+
+        foreach (['require-dev', 'autoload-dev', 'scripts', 'scripts-descriptions', 'config', 'extra', 'repositories'] as $developmentKey) {
+            self::assertArrayNotHasKey($developmentKey, $production);
+        }
+
+        foreach (array_keys($source['require-dev'] ?? []) as $developmentPackage) {
+            self::assertArrayNotHasKey($developmentPackage, $production['require']);
+        }
+    }
+
+    public function testArchiveContainsTheCompleteDistributionDocuments(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open(self::$archive));
+
+        try {
+            self::assertSame(
+                file_get_contents($root . '/LICENSE'),
+                $zip->getFromName(self::ROOT . 'LICENSE'),
+            );
+            self::assertSame(
+                file_get_contents($root . '/readme.txt'),
+                $zip->getFromName(self::ROOT . 'readme.txt'),
+            );
+        } finally {
+            $zip->close();
+        }
+
+        $license = (string) file_get_contents($root . '/LICENSE');
+        self::assertStringStartsWith("                    GNU GENERAL PUBLIC LICENSE\n", $license);
+        self::assertStringContainsString("TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION\n", $license);
+        self::assertStringContainsString("  12. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING", $license);
+        self::assertStringContainsString("END OF TERMS AND CONDITIONS\n", $license);
+        self::assertStringContainsString("How to Apply These Terms to Your New Programs\n", $license);
+    }
+
+    public function testArchiveContainsNoSymbolicLinks(): void
+    {
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open(self::$archive));
+
+        try {
+            for ($index = 0; $index < $zip->numFiles; ++$index) {
+                $operatingSystem = 0;
+                $attributes = 0;
+                self::assertTrue($zip->getExternalAttributesIndex($index, $operatingSystem, $attributes));
+                self::assertSame(ZipArchive::OPSYS_UNIX, $operatingSystem);
+                self::assertNotSame(0120000, (($attributes >> 16) & 0170000));
+            }
+        } finally {
+            $zip->close();
         }
     }
 
@@ -99,25 +189,86 @@ final class PackagingTest extends TestCase
         self::assertSame(0, $status, implode(PHP_EOL, $output));
     }
 
-    public function testBuildRejectsSourceSymlinksAndCleansUp(): void
+    public function testEveryArchiveEntryUsesTheFixedLocalDate(): void
     {
-        $root = dirname(__DIR__, 2);
-        $target = tempnam(sys_get_temp_dir(), 'bastion-source-');
-        $link = $root . '/src/.packaging-symlink-' . bin2hex(random_bytes(6));
-
-        if ($target === false || ! @symlink($target, $link)) {
-            $target === false || unlink($target);
-            self::markTestSkipped('Creating symlinks is not permitted on this platform.');
-        }
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open(self::$archive));
 
         try {
-            exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/tools/build.php') . ' 2>&1', $output, $status);
-            self::assertNotSame(0, $status, implode(PHP_EOL, $output));
-            self::assertFileDoesNotExist(self::$archive);
-            self::assertDirectoryDoesNotExist($root . '/.build/stage');
+            for ($index = 0; $index < $zip->numFiles; ++$index) {
+                $entry = $zip->statIndex($index);
+                self::assertIsArray($entry);
+                self::assertSame('1981-01-01', date('Y-m-d', $entry['mtime']), 'Unexpected archive date: ' . $entry['name']);
+            }
         } finally {
-            is_link($link) && unlink($link);
-            is_file($target) && unlink($target);
+            $zip->close();
         }
+    }
+
+    public function testBuildRemovesStaleOutputBeforeCreatingTheArchive(): void
+    {
+        $root = dirname(__DIR__, 2);
+        file_put_contents($root . '/.build/bastion-security-wp.zip', 'stale archive');
+
+        self::runBuild($root);
+
+        self::assertSame(['bastion-security.zip'], array_values(array_diff(scandir($root . '/.build'), ['.', '..'])));
+    }
+
+    public function testBuildIsDeterministic(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $firstHash = hash_file('sha256', self::$archive);
+        self::assertIsString($firstHash);
+
+        self::runBuild($root);
+        $secondHash = hash_file('sha256', self::$archive);
+        self::assertSame($firstHash, $secondHash);
+    }
+
+    public function testFailedBuildRemovesArchiveAndStagingDirectory(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $command = self::environmentPrefix('COMPOSER_BINARY', $root . '/missing-composer.phar')
+            . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/tools/build.php') . ' 2>&1';
+        exec($command, $output, $status);
+
+        self::assertNotSame(0, $status, implode(PHP_EOL, $output));
+        self::assertFileDoesNotExist(self::$archive);
+        self::assertDirectoryDoesNotExist($root . '/.build/stage');
+        self::runBuild($root);
+    }
+
+    /** @return list<string> */
+    private static function archiveEntries(): array
+    {
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open(self::$archive));
+        $entries = [];
+
+        for ($index = 0; $index < $zip->numFiles; ++$index) {
+            $entry = $zip->getNameIndex($index);
+            self::assertIsString($entry);
+            $entries[] = $entry;
+        }
+
+        $zip->close();
+
+        return $entries;
+    }
+
+    private static function runBuild(string $root): void
+    {
+        exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/tools/build.php') . ' 2>&1', $output, $status);
+        self::assertSame(0, $status, implode(PHP_EOL, $output));
+    }
+
+    private static function environmentPrefix(string $name, string $value): string
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return 'set ' . $name . '=' . escapeshellarg($value) . '&& ';
+        }
+
+        return $name . '=' . escapeshellarg($value) . ' ';
     }
 }

@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-namespace BastionSecurityWP\Tests\Unit;
+namespace {
+    if (! function_exists('__')) {
+        function __(string $text, string $domain = 'default'): string { return $text; }
+    }
+}
+
+namespace BastionSecurityWP\Tests\Unit {
 
 use BastionSecurityWP\Admin\FileEditorAdmin;
 use BastionSecurityWP\Security\FileEditorPolicy;
@@ -152,4 +158,5 @@ final class FileEditorAdminTest extends TestCase
             static function (): void {},
         );
     }
+}
 }

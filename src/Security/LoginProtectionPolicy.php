@@ -57,7 +57,9 @@ final class LoginProtectionPolicy
         $this->readTransient = Closure::fromCallable($readTransient ?? static fn (string $key): mixed => \get_transient($key));
         $this->writeTransient = Closure::fromCallable($writeTransient ?? static fn (string $key, array $value, int $expiration): bool => \set_transient($key, $value, $expiration));
         $this->deleteTransient = Closure::fromCallable($deleteTransient ?? static fn (string $key): bool => \delete_transient($key));
-        $this->directAddress = Closure::fromCallable($directAddress ?? static fn (): mixed => $_SERVER['REMOTE_ADDR'] ?? null);
+        $this->directAddress = Closure::fromCallable($directAddress ?? static fn (): mixed => is_string($_SERVER['REMOTE_ADDR'] ?? null)
+            ? \sanitize_text_field(\wp_unslash($_SERVER['REMOTE_ADDR']))
+            : null);
         $this->secret = Closure::fromCallable($secret ?? static fn (): string => \wp_salt('auth'));
         $this->errorFactory = Closure::fromCallable($errorFactory ?? static fn (string $code, string $message): object => new \WP_Error($code, $message));
         $this->sanitizeIdentity = Closure::fromCallable($sanitizeIdentity ?? static fn (string $identity): string => \sanitize_user($identity));

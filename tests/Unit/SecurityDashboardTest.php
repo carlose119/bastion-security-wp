@@ -24,6 +24,13 @@ namespace {
         }
     }
 
+    if (! function_exists('esc_textarea')) {
+        function esc_textarea(string $value): string
+        {
+            return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        }
+    }
+
     if (! function_exists('esc_url')) {
         function esc_url(string $value): string
         {
@@ -35,6 +42,27 @@ namespace {
         function wp_nonce_field(string $action): void
         {
             echo '<input type="hidden" name="_wpnonce" value="nonce-for-' . esc_attr($action) . '">';
+        }
+    }
+
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string
+        {
+            return stripslashes($value);
+        }
+    }
+
+    if (! function_exists('sanitize_key')) {
+        function sanitize_key(string $value): string
+        {
+            return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)) ?? '';
+        }
+    }
+
+    if (! function_exists('wp_kses_post')) {
+        function wp_kses_post(string $html): string
+        {
+            return strip_tags($html, '<p><strong><a>');
         }
     }
 
@@ -327,6 +355,39 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringNotContainsString('<script>', $html);
             self::assertStringContainsString('Not assessed', $html);
             self::assertStringContainsString('site-health.php', $html);
+        }
+
+        public function testReportedRequestAndTranslationBoundariesRemainCompliant(): void
+        {
+            $root = dirname(__DIR__, 2);
+            $adminFiles = [
+                'AdministratorAccountAlertAdmin.php',
+                'FileEditorAdmin.php',
+                'LoginProtectionAdmin.php',
+                'PluginActivityAlertAdmin.php',
+                'RestRouteControlsAdmin.php',
+                'XmlRpcPingbackAdmin.php',
+            ];
+
+            foreach ($adminFiles as $file) {
+                $source = (string) file_get_contents($root . '/src/Admin/' . $file);
+                self::assertDoesNotMatchRegularExpression(
+                    '/\\\\(?:__|_e|esc_html__|esc_attr__|esc_html_e|esc_attr_e)\s*\(\s*[^\'\"]/',
+                    $source,
+                    $file . ' must use literal translation source strings.',
+                );
+                self::assertStringContainsString('Raw POST is handed to handle()', $source, $file);
+                self::assertStringNotContainsString("notice-' . \$severity", $source, $file);
+            }
+
+            foreach (['AdministratorAccountAlertAdmin.php', 'LoginProtectionAdmin.php', 'PluginActivityAlertAdmin.php', 'RestRouteControlsAdmin.php', 'XmlRpcPingbackAdmin.php'] as $file) {
+                $source = (string) file_get_contents($root . '/src/Admin/' . $file);
+                self::assertStringContainsString("\\sanitize_text_field(\\wp_unslash(\$_SERVER['REQUEST_METHOD']))", $source, $file);
+            }
+
+            $dashboard = (string) file_get_contents($root . '/src/Admin/SecurityDashboard.php');
+            self::assertStringContainsString('is_string($_GET[$key]) ? \\sanitize_key(\\wp_unslash($_GET[$key]))', $dashboard);
+            self::assertStringContainsString('Read-only PRG notice and tab selectors cannot mutate state', $dashboard);
         }
 
         private function renderTab(string $tab): string

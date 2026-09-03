@@ -35,7 +35,9 @@ final class AdministratorAccountAlertAdmin
         $this->safeRedirect = Closure::fromCallable($safeRedirect ?? static fn (string $url): bool => \wp_safe_redirect($url));
         $this->adminUrl = Closure::fromCallable($adminUrl ?? static fn (string $path): string => \admin_url($path));
         $this->terminate = Closure::fromCallable($terminate ?? static function (): never { exit; });
-        $this->requestMethod = Closure::fromCallable($requestMethod ?? static fn (): string => is_string($_SERVER['REQUEST_METHOD'] ?? null) ? $_SERVER['REQUEST_METHOD'] : '');
+        $this->requestMethod = Closure::fromCallable($requestMethod ?? static fn (): string => is_string($_SERVER['REQUEST_METHOD'] ?? null)
+            ? \sanitize_text_field(\wp_unslash($_SERVER['REQUEST_METHOD']))
+            : '');
     }
 
     /** @param array<string, mixed> $post */
@@ -72,6 +74,7 @@ final class AdministratorAccountAlertAdmin
 
     public function handleRequest(): void
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Raw POST is handed to handle(), which verifies capability, target, command, and the operation-bound nonce before mutation.
         $this->handle($_POST);
     }
 
@@ -80,43 +83,44 @@ final class AdministratorAccountAlertAdmin
         $state = $this->policy->state();
         $recipientText = implode("\n", $state['recipients']);
 
-        echo '<section id="bastion-administrator-account-alerts" class="bastion-tools bastion-administrator-account-alerts"><h2>' . \esc_html__('Administrator account alerts', 'bastion-security-wp') . '</h2>';
+        echo '<section id="bastion-administrator-account-alerts" class="bastion-tools bastion-administrator-account-alerts"><h2>' . \esc_html__('Administrator account alerts', 'bastion-security') . '</h2>';
         $this->renderNotice($notice);
-        echo '<p><strong>' . \esc_html__('Status:', 'bastion-security-wp') . '</strong> ' . ($state['enabled'] ? \esc_html__('Enabled', 'bastion-security-wp') : \esc_html__('Disabled', 'bastion-security-wp')) . '</p>';
-        echo '<p>' . \esc_html__('This opt-in, per-site tool observes successful WordPress lifecycle hooks for these exact events: Administrator role granted, Administrator role removed, and Administrator account deleted.', 'bastion-security-wp') . '</p>';
-        echo '<p>' . \esc_html__('Messages contain the target user ID and bounded login, the administrator role where applicable, contextual current user ID and login, site name and URL, and WordPress-local timestamp. They exclude email addresses, display names, IP addresses, user agents, passwords, capability lists, deletion reassignment, and arbitrary metadata.', 'bastion-security-wp') . '</p>';
-        echo '<p>' . \esc_html__('The contextual current user may be unavailable and does not prove causality. Bastion sends one plain-text email per recipient so addresses are not disclosed to each other.', 'bastion-security-wp') . '</p>';
-        echo '<p>' . \esc_html__('Only the current site context is observed. On multisite, remove_user_from_blog may bypass the role-removal hook through remove_all_caps. Cross-site fan-out, network deletion, and super-admin grants and revocations are outside this tool.', 'bastion-security-wp') . '</p>';
-        echo '<p>' . \esc_html__('Bastion attempts wp_mail delivery independently for each recipient, continues after a failed send, does not retry, and does not prove delivery. The tool does not block or roll back account changes.', 'bastion-security-wp') . '</p>';
+        echo '<p><strong>' . \esc_html__('Status:', 'bastion-security') . '</strong> ' . ($state['enabled'] ? \esc_html__('Enabled', 'bastion-security') : \esc_html__('Disabled', 'bastion-security')) . '</p>';
+        echo '<p>' . \esc_html__('This opt-in, per-site tool observes successful WordPress lifecycle hooks for these exact events: Administrator role granted, Administrator role removed, and Administrator account deleted.', 'bastion-security') . '</p>';
+        echo '<p>' . \esc_html__('Messages contain the target user ID and bounded login, the administrator role where applicable, contextual current user ID and login, site name and URL, and WordPress-local timestamp. They exclude email addresses, display names, IP addresses, user agents, passwords, capability lists, deletion reassignment, and arbitrary metadata.', 'bastion-security') . '</p>';
+        echo '<p>' . \esc_html__('The contextual current user may be unavailable and does not prove causality. Bastion sends one plain-text email per recipient so addresses are not disclosed to each other.', 'bastion-security') . '</p>';
+        echo '<p>' . \esc_html__('Only the current site context is observed. On multisite, remove_user_from_blog may bypass the role-removal hook through remove_all_caps. Cross-site fan-out, network deletion, and super-admin grants and revocations are outside this tool.', 'bastion-security') . '</p>';
+        echo '<p>' . \esc_html__('Bastion attempts wp_mail delivery independently for each recipient, continues after a failed send, does not retry, and does not prove delivery. The tool does not block or roll back account changes.', 'bastion-security') . '</p>';
         echo '<form method="post" action="' . \esc_url(($this->adminUrl)('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="' . \esc_attr(self::POST_ACTION) . '">';
         echo '<input type="hidden" name="target" value="' . \esc_attr(self::TARGET) . '">';
         echo '<input type="hidden" name="command" value="save">';
         \wp_nonce_field(self::NONCE_ACTION);
-        echo '<fieldset><legend class="screen-reader-text">' . \esc_html__('Administrator account alert settings', 'bastion-security-wp') . '</legend>';
-        echo '<label><input type="checkbox" name="enabled" value="1"' . ($state['enabled'] ? ' checked' : '') . '> ' . \esc_html__('Enable administrator account alerts', 'bastion-security-wp') . '</label>';
-        echo '<p><label for="bastion-administrator-alert-recipients"><strong>' . \esc_html__('Recipients', 'bastion-security-wp') . '</strong></label></p>';
+        echo '<fieldset><legend class="screen-reader-text">' . \esc_html__('Administrator account alert settings', 'bastion-security') . '</legend>';
+        echo '<label><input type="checkbox" name="enabled" value="1"' . ($state['enabled'] ? ' checked' : '') . '> ' . \esc_html__('Enable administrator account alerts', 'bastion-security') . '</label>';
+        echo '<p><label for="bastion-administrator-alert-recipients"><strong>' . \esc_html__('Recipients', 'bastion-security') . '</strong></label></p>';
         echo '<textarea id="bastion-administrator-alert-recipients" name="recipients" rows="5" class="large-text" aria-describedby="bastion-administrator-alert-recipients-help">' . \esc_textarea($recipientText) . '</textarea>';
-        echo '<p id="bastion-administrator-alert-recipients-help" class="description">' . \esc_html__('Enter email addresses separated by commas or new lines. Every address must be valid. Enabling requires at least one recipient.', 'bastion-security-wp') . '</p>';
-        echo '<p>' . \esc_html__('Disabling preserves the configured recipient list for a later re-enable. Delete the saved option to remove the configuration completely.', 'bastion-security-wp') . '</p>';
-        \submit_button(\esc_html__('Save administrator account alert settings', 'bastion-security-wp'));
+        echo '<p id="bastion-administrator-alert-recipients-help" class="description">' . \esc_html__('Enter email addresses separated by commas or new lines. Every address must be valid. Enabling requires at least one recipient.', 'bastion-security') . '</p>';
+        echo '<p>' . \esc_html__('Disabling preserves the configured recipient list for a later re-enable. Delete the saved option to remove the configuration completely.', 'bastion-security') . '</p>';
+        \submit_button(\esc_html__('Save administrator account alert settings', 'bastion-security'));
         echo '</fieldset></form></section>';
     }
 
     private function renderNotice(string $notice): void
     {
-        $messages = [
-            'updated' => 'Administrator account alert settings were updated.',
-            'unchanged' => 'Administrator account alert settings were already in the requested state.',
-            'invalid_recipients' => 'Every recipient must be a valid email address. No change was made.',
-            'recipient_required' => 'Add at least one valid recipient before enabling alerts.',
-            'invalid_request' => 'The request was malformed or did not use POST. No change was made.',
-            'invalid_nonce' => 'The request could not be verified. No change was made.',
-            'invalid_command' => 'The requested administrator account alert target or command is not supported. No change was made.',
-            'forbidden' => 'You are not allowed to perform this action. No change was made.',
-            'write_failed' => 'WordPress could not save the administrator account alert settings. The prior state may remain.',
-        ];
-        if (! isset($messages[$notice])) {
+        $message = match ($notice) {
+            'updated' => \__('Administrator account alert settings were updated.', 'bastion-security'),
+            'unchanged' => \__('Administrator account alert settings were already in the requested state.', 'bastion-security'),
+            'invalid_recipients' => \__('Every recipient must be a valid email address. No change was made.', 'bastion-security'),
+            'recipient_required' => \__('Add at least one valid recipient before enabling alerts.', 'bastion-security'),
+            'invalid_request' => \__('The request was malformed or did not use POST. No change was made.', 'bastion-security'),
+            'invalid_nonce' => \__('The request could not be verified. No change was made.', 'bastion-security'),
+            'invalid_command' => \__('The requested administrator account alert target or command is not supported. No change was made.', 'bastion-security'),
+            'forbidden' => \__('You are not allowed to perform this action. No change was made.', 'bastion-security'),
+            'write_failed' => \__('WordPress could not save the administrator account alert settings. The prior state may remain.', 'bastion-security'),
+            default => null,
+        };
+        if ($message === null) {
             return;
         }
 
@@ -126,7 +130,7 @@ final class AdministratorAccountAlertAdmin
             'invalid_recipients', 'recipient_required' => 'warning',
             default => 'error',
         };
-        echo '<div class="notice notice-' . $severity . '"><p>' . \esc_html__($messages[$notice], 'bastion-security-wp') . '</p></div>';
+        echo '<div class="notice notice-' . \esc_attr($severity) . '"><p>' . \esc_html($message) . '</p></div>';
     }
 
     private function redirect(string $notice): void

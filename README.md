@@ -1,6 +1,6 @@
-# Bastion Security WP
+# Bastion Security
 
-Bastion Security WP provides focused WordPress security posture diagnostics and seven reversible security tools: five under **Hardening**, plus dedicated **Security headers** and **REST API** tools. It reports evidence, not a guarantee of invulnerability.
+Bastion Security provides focused WordPress security posture diagnostics and seven reversible security tools: five under **Hardening**, plus dedicated **Security headers** and **REST API** tools. It reports evidence, not a guarantee of invulnerability.
 
 ## Quick navigation
 
@@ -262,9 +262,11 @@ composer package
 composer package:verify
 ```
 
-The artifact is written to `.build/bastion-security-wp.zip`, rooted at `bastion-security-wp/`. The explicit distribution contains the plugin entry point, `src/`, README, Composer metadata, and a production-only authoritative autoloader generated in disposable staging. It excludes tests, development dependencies, PHPUnit configuration, Git metadata, GitHub workflows, caches, and local tooling.
+The artifact is written to `.build/bastion-security.zip`, rooted at `bastion-security/`. The distribution contains `bastion-security-wp.php`, `readme.txt`, `LICENSE`, a sanitized production `composer.json`, `src/`, and a production-only authoritative `vendor/` generated in disposable staging. The packaged Composer manifest contains only runtime package identity, the PHP requirement, and the PSR-4 autoload mapping; `composer.lock`, development metadata, and development dependencies are excluded from the final ZIP.
 
-Archive entries are sorted, use normalized `/` separators, fixed permissions, and a fixed 1980 timestamp. Identical bytes are expected with the same PHP, Composer, libzip, dependency lockfile, and source; ZIP compression implementations can differ across environments, so cross-toolchain byte identity is not claimed.
+Archive entries are sorted, use normalized `/` separators, fixed permissions, and the fixed local archive date 1981-01-01. The build creates that date with local-time calendar components so ZIP's DOS date remains stable across timezones. Identical bytes are expected with the same PHP, Composer, libzip, dependency lockfile, and source; ZIP compression implementations can differ across environments, so cross-toolchain byte identity is not claimed.
+
+For release validation and deployment, extract the production ZIP first. Run WordPress.org Plugin Check and prepare the WordPress.org SVN submission from that extracted artifact, never from the development checkout.
 
 ## Rollback
 

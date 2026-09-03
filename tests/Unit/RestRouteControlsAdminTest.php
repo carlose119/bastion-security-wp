@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace {
+    if (! function_exists('__')) { function __(string $text, string $domain = 'default'): string { return $text; } }
     if (! function_exists('esc_html')) { function esc_html(string $v): string { return htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); } }
     if (! function_exists('esc_html__')) { function esc_html__(string $v, string $d): string { return esc_html($v); } }
     if (! function_exists('esc_attr')) { function esc_attr(string $v): string { return htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); } }

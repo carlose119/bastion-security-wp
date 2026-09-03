@@ -38,6 +38,13 @@ namespace {
         }
     }
 
+    if (! function_exists('wp_kses_post')) {
+        function wp_kses_post(string $html): string
+        {
+            return strip_tags($html, '<code>');
+        }
+    }
+
     if (! function_exists('submit_button')) {
         function submit_button(string $label): void
         {

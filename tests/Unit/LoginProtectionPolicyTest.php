@@ -49,11 +49,13 @@ final class LoginProtectionPolicyTest extends TestCase
         }
     }
 
-    public function testProductionAddressReaderUsesOnlyRemoteAddr(): void
+    public function testProductionAddressReaderUsesOnlySanitizedUnslashedRemoteAddr(): void
     {
         $source = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Security/LoginProtectionPolicy.php');
 
         self::assertStringContainsString("\$_SERVER['REMOTE_ADDR']", $source);
+        self::assertStringContainsString("is_string(\$_SERVER['REMOTE_ADDR'] ?? null)", $source);
+        self::assertStringContainsString("\\sanitize_text_field(\\wp_unslash(\$_SERVER['REMOTE_ADDR']))", $source);
         self::assertStringNotContainsString('HTTP_X_FORWARDED_FOR', $source);
         self::assertStringNotContainsString('HTTP_FORWARDED', $source);
         self::assertStringNotContainsString('X-Forwarded-For', $source);

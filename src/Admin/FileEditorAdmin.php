@@ -68,6 +68,7 @@ final class FileEditorAdmin
 
     public function handleRequest(): void
     {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Raw POST is handed to handle(), which verifies capability and the operation-bound nonce before mutation.
         $this->handle($_POST);
     }
 
@@ -75,11 +76,11 @@ final class FileEditorAdmin
     {
         $state = $this->policy->state();
 
-        echo '<section id="bastion-file-editor" class="bastion-tools"><h2>' . \esc_html__('WordPress file editor lock', 'bastion-security-wp') . '</h2>';
+        echo '<section id="bastion-file-editor" class="bastion-tools"><h2>' . \esc_html__('WordPress file editor lock', 'bastion-security') . '</h2>';
         $this->renderNotice($notice);
 
         if (! $state['available']) {
-            echo '<p>' . \esc_html__('This tool is unavailable on multisite. Bastion does not change the network file-editor policy.', 'bastion-security-wp') . '</p></section>';
+            echo '<p>' . \esc_html__('This tool is unavailable on multisite. Bastion does not change the network file-editor policy.', 'bastion-security') . '</p></section>';
 
             return;
         }
@@ -87,12 +88,13 @@ final class FileEditorAdmin
         if ($state['external_defined']) {
             $effective = $state['external_value'] ? 'disabled' : 'available';
             echo '<p>' . sprintf(
-                \esc_html__('The file editor is currently %s because DISALLOW_FILE_EDIT is defined outside Bastion. Bastion will not override or remove that value.', 'bastion-security-wp'),
+                /* translators: %s: effective WordPress file editor state. */
+                \esc_html__('The file editor is currently %s because DISALLOW_FILE_EDIT is defined outside Bastion. Bastion will not override or remove that value.', 'bastion-security'),
                 \esc_html($effective),
             ) . '</p>';
 
             if ($state['option_enabled']) {
-                echo '<p>' . \esc_html__('A stale Bastion preference is enabled, but it does not own the effective constant. You may clear only that preference.', 'bastion-security-wp') . '</p>';
+                echo '<p>' . \esc_html__('A stale Bastion preference is enabled, but it does not own the effective constant. You may clear only that preference.', 'bastion-security') . '</p>';
                 $this->renderForm('disable', 'Clear Bastion preference');
             }
 
@@ -102,9 +104,9 @@ final class FileEditorAdmin
         }
 
         echo '<p>' . ($state['plugin_managed']
-            ? \esc_html__('The file editor is disabled by Bastion for this request.', 'bastion-security-wp')
-            : \esc_html__('The file editor is available. Bastion does not currently manage the lock.', 'bastion-security-wp')) . '</p>';
-        echo '<p>' . \esc_html__('Bastion stores one WordPress option. Disabling it stops Bastion from defining the constant on the next request. No configuration file is edited.', 'bastion-security-wp') . '</p>';
+            ? \esc_html__('The file editor is disabled by Bastion for this request.', 'bastion-security')
+            : \esc_html__('The file editor is available. Bastion does not currently manage the lock.', 'bastion-security')) . '</p>';
+        echo '<p>' . \esc_html__('Bastion stores one WordPress option. Disabling it stops Bastion from defining the constant on the next request. No configuration file is edited.', 'bastion-security') . '</p>';
         $this->renderForm($state['option_enabled'] ? 'disable' : 'enable', $state['option_enabled'] ? 'Disable Bastion lock' : 'Enable Bastion lock');
         echo '</section>';
     }
@@ -121,18 +123,19 @@ final class FileEditorAdmin
 
     private function renderNotice(string $notice): void
     {
-        $messages = [
-            'updated' => 'The Bastion file-editor preference was updated.',
-            'unchanged' => 'The Bastion file-editor preference was already in the requested state.',
-            'unavailable' => 'This tool is unavailable on multisite.',
-            'external_conflict' => 'DISALLOW_FILE_EDIT is defined outside Bastion, so Bastion did not change its preference.',
-            'write_failed' => 'WordPress could not save the Bastion file-editor preference.',
-            'invalid_nonce' => 'The request could not be verified. No change was made.',
-            'invalid_command' => 'The requested command is not supported. No change was made.',
-            'forbidden' => 'You are not allowed to perform this action. No change was made.',
-        ];
+        $message = match ($notice) {
+            'updated' => \__('The Bastion file-editor preference was updated.', 'bastion-security'),
+            'unchanged' => \__('The Bastion file-editor preference was already in the requested state.', 'bastion-security'),
+            'unavailable' => \__('This tool is unavailable on multisite.', 'bastion-security'),
+            'external_conflict' => \__('DISALLOW_FILE_EDIT is defined outside Bastion, so Bastion did not change its preference.', 'bastion-security'),
+            'write_failed' => \__('WordPress could not save the Bastion file-editor preference.', 'bastion-security'),
+            'invalid_nonce' => \__('The request could not be verified. No change was made.', 'bastion-security'),
+            'invalid_command' => \__('The requested command is not supported. No change was made.', 'bastion-security'),
+            'forbidden' => \__('You are not allowed to perform this action. No change was made.', 'bastion-security'),
+            default => null,
+        };
 
-        if (! isset($messages[$notice])) {
+        if ($message === null) {
             return;
         }
 
@@ -143,7 +146,7 @@ final class FileEditorAdmin
             default => 'error',
         };
 
-        echo '<div class="notice notice-' . $severity . '"><p>' . \esc_html__($messages[$notice], 'bastion-security-wp') . '</p></div>';
+        echo '<div class="notice notice-' . \esc_attr($severity) . '"><p>' . \esc_html($message) . '</p></div>';
     }
 
     private function redirect(string $notice): void

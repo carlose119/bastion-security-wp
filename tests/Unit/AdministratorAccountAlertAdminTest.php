@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 namespace {
+    if (! function_exists('__')) {
+        function __(string $text, string $domain = 'default'): string { return $text; }
+    }
     if (! function_exists('esc_html')) {
         function esc_html(string $value): string { return htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); }
     }
