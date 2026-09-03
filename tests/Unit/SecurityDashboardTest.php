@@ -55,9 +55,11 @@ namespace {
 
 namespace BastionSecurityWP\Tests\Unit {
     use BastionSecurityWP\Admin\FileEditorAdmin;
+    use BastionSecurityWP\Admin\LoginProtectionAdmin;
     use BastionSecurityWP\Admin\SecurityDashboard;
     use BastionSecurityWP\Admin\SecurityHeadersAdmin;
     use BastionSecurityWP\Security\FileEditorPolicy;
+    use BastionSecurityWP\Security\LoginProtectionPolicy;
     use BastionSecurityWP\Security\SecurityHeadersPolicy;
     use BastionSecurityWP\SiteHealthDiagnostics;
     use PHPUnit\Framework\TestCase;
@@ -66,7 +68,7 @@ namespace BastionSecurityWP\Tests\Unit {
     {
         protected function tearDown(): void
         {
-            unset($_GET['tab'], $_GET['bastion_notice']);
+            unset($_GET['tab'], $_GET['bastion_notice'], $_GET['bastion_login_notice']);
         }
 
         public function testTabsUseNativeMarkupAndOnlyRenderTheActivePanel(): void
@@ -78,12 +80,14 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('tab=hardening', $overview);
             self::assertStringContainsString('tab=headers', $overview);
             self::assertMatchesRegularExpression('/<a class="nav-tab nav-tab-active"[^>]+aria-current="page">/', $overview);
-            self::assertSame(7, substr_count($overview, '<details class="bastion-diagnostic">'));
+            self::assertSame(8, substr_count($overview, '<details class="bastion-diagnostic">'));
             self::assertStringNotContainsString('WordPress file editor lock', $overview);
             self::assertStringNotContainsString('HTTP security header preset', $overview);
 
             $hardening = $this->renderTab('hardening');
             self::assertStringContainsString('WordPress file editor lock', $hardening);
+            self::assertStringContainsString('Login Protection', $hardening);
+            self::assertTrue(strpos($hardening, 'WordPress file editor lock') < strpos($hardening, 'Login Protection'));
             self::assertStringNotContainsString('<summary class="bastion-diagnostic-summary">', $hardening);
             self::assertStringNotContainsString('HTTP security header preset', $hardening);
 
@@ -95,12 +99,12 @@ namespace BastionSecurityWP\Tests\Unit {
 
         public function testUnknownAndMalformedTabsFallBackToOverview(): void
         {
-            self::assertSame(7, substr_count($this->renderTab('unknown'), '<details class="bastion-diagnostic">'));
+            self::assertSame(8, substr_count($this->renderTab('unknown'), '<details class="bastion-diagnostic">'));
             $_GET['tab'] = ['headers'];
             ob_start();
             $this->dashboard()->render();
             $html = (string) ob_get_clean();
-            self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(8, substr_count($html, '<details class="bastion-diagnostic">'));
             self::assertStringNotContainsString('HTTP security header preset', $html);
         }
 
@@ -111,9 +115,9 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('Total diagnostics', $html);
             self::assertStringContainsString('Good', $html);
             self::assertStringContainsString('Needs attention', $html);
-            self::assertStringContainsString('<span>Total diagnostics</span><strong>7</strong>', $html);
+            self::assertStringContainsString('<span>Total diagnostics</span><strong>8</strong>', $html);
             self::assertStringContainsString('<span>Good</span><strong>3</strong>', $html);
-            self::assertStringContainsString('<span>Needs attention</span><strong>4</strong>', $html);
+            self::assertStringContainsString('<span>Needs attention</span><strong>5</strong>', $html);
             self::assertStringContainsString('site-health.php', $html);
             self::assertStringNotContainsString('Not assessed count', $html);
         }
@@ -128,6 +132,12 @@ namespace BastionSecurityWP\Tests\Unit {
             $_GET['bastion_notice'] = 'partial_failure';
             self::assertStringContainsString('notice notice-warning', $this->renderTab('headers'));
             self::assertStringNotContainsString('partial', $this->renderTab('hardening'));
+
+            unset($_GET['bastion_notice']);
+            $_GET['bastion_login_notice'] = 'enabled';
+            $hardening = $this->renderTab('hardening');
+            self::assertStringContainsString('Login Protection was enabled', $hardening);
+            self::assertStringNotContainsString('file-editor preference was updated', $hardening);
         }
 
         public function testDashboardRendersSevenBastionResultsAndNativeSiteHealthLink(): void
@@ -138,10 +148,11 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard->render();
             $html = (string) ob_get_clean();
 
-            self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
-            self::assertSame(7, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
+            self::assertSame(8, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(8, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
             self::assertStringContainsString('HTTPS and admin transport posture', $html);
             self::assertStringContainsString('File editor posture', $html);
+            self::assertStringContainsString('Login Protection', $html);
             self::assertStringContainsString('Security header preset', $html);
             self::assertStringContainsString('File modification posture', $html);
             self::assertStringContainsString('Runtime compatibility notice', $html);
@@ -150,7 +161,8 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertTrue(
                 strpos($html, 'HTTPS and admin transport posture')
                 < strpos($html, 'File editor posture')
-                && strpos($html, 'File editor posture') < strpos($html, 'Security header preset')
+                && strpos($html, 'File editor posture') < strpos($html, 'Login Protection')
+                && strpos($html, 'Login Protection') < strpos($html, 'Security header preset')
                 && strpos($html, 'Security header preset') < strpos($html, 'File modification posture')
                 && strpos($html, 'File modification posture') < strpos($html, 'Runtime compatibility notice')
                 && strpos($html, 'Runtime compatibility notice') < strpos($html, 'Plugin update compatibility')
@@ -169,8 +181,8 @@ namespace BastionSecurityWP\Tests\Unit {
             $this->dashboard()->render();
             $html = (string) ob_get_clean();
 
-            self::assertSame(7, substr_count($html, '<details class="bastion-diagnostic">'));
-            self::assertSame(7, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
+            self::assertSame(8, substr_count($html, '<details class="bastion-diagnostic">'));
+            self::assertSame(8, substr_count($html, '<summary class="bastion-diagnostic-summary">'));
             self::assertStringNotContainsString('<details class="bastion-diagnostic" open', $html);
             self::assertDoesNotMatchRegularExpression('/<details\b[^>]*\bopen\b/i', $html);
             self::assertStringContainsString('class="bastion-diagnostic-badge bastion-diagnostic-badge--good">Good</span>', $html);
@@ -262,7 +274,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard->render();
             $html = (string) ob_get_clean();
 
-            self::assertCount(14, $sanitizedFragments);
+            self::assertCount(16, $sanitizedFragments);
             self::assertStringNotContainsString('<script>', $html);
             self::assertStringContainsString('Not assessed', $html);
             self::assertStringContainsString('site-health.php', $html);
@@ -308,6 +320,33 @@ namespace BastionSecurityWP\Tests\Unit {
                 static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
                 static function (): void {},
             );
+            $loginConfig = ['enabled' => false, 'generation' => 1];
+            $loginMetrics = [];
+            $loginPolicy = new LoginProtectionPolicy(
+                static fn (): int => 1000,
+                static function () use (&$loginConfig): array { return $loginConfig; },
+                static function (array $value) use (&$loginConfig): bool { $loginConfig = $value; return true; },
+                static function () use (&$loginMetrics): array { return $loginMetrics; },
+                static function (array $value) use (&$loginMetrics): bool { $loginMetrics = $value; return true; },
+                static fn (string $key): bool => false,
+                static fn (string $key, array $value, int $expiration): bool => true,
+                static fn (string $key): bool => true,
+                static fn (): string => '192.0.2.10',
+                static fn (): string => 'test-secret',
+                static fn (string $code, string $message): object => (object) ['code' => $code, 'message' => $message],
+                static fn (string $identity): string => trim($identity),
+                static fn (mixed $value): bool => false,
+            );
+            $loginAdmin = new LoginProtectionAdmin(
+                $loginPolicy,
+                static fn (string $capability): bool => $capability === 'manage_options',
+                static fn (string $nonce, string $action): bool => true,
+                static fn (string $url): bool => true,
+                static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
+                static function (): void {},
+                static fn (): string => 'POST',
+                static fn (int $timestamp): string => (string) $timestamp,
+            );
             $securityHeadersPolicy = new SecurityHeadersPolicy(
                 static fn (): bool => false,
                 static fn (): bool => true,
@@ -326,12 +365,14 @@ namespace BastionSecurityWP\Tests\Unit {
                 $escape ?? static fn (string $value): string => esc_html($value),
                 fileEditorPolicy: $policy,
                 securityHeadersPolicy: $securityHeadersPolicy,
+                loginProtectionPolicy: $loginPolicy,
             );
 
             return new SecurityDashboard(
                 $diagnostics,
                 $fileEditor,
                 $securityHeaders,
+                $loginAdmin,
                 static fn (string $capability): bool => $authorized && $capability === 'manage_options',
                 static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
                 $sanitize ?? static fn (string $html): string => strip_tags($html, '<p><strong><a>'),

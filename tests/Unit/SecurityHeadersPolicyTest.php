@@ -304,9 +304,9 @@ final class SecurityHeadersPolicyTest extends TestCase
         self::assertStringContainsString('off by default', strtolower($readme));
         self::assertStringContainsString('24-hour', $readme);
         self::assertStringContainsString('add-only', $readme);
-        self::assertStringContainsString('v5.3.4', $readme);
-        self::assertStringContainsString('does not copy', $readme);
-        self::assertStringContainsString('does not claim parity', $readme);
+        self::assertStringContainsString('bounded, site-specific contract', $readme);
+        self::assertStringContainsString('direct-header and multi-hook emission', $readme);
+        self::assertStringContainsString('cannot be configured safely without additional site context', $readme);
         self::assertStringContainsString('wp_headers', $readme);
         self::assertStringContainsString('CDN edge', $readme);
         self::assertStringContainsString('Access-Control-Allow-Origin', $readme);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BastionSecurityWP;
 
 use BastionSecurityWP\Security\FileEditorPolicy;
+use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\SecurityHeadersPolicy;
 use Closure;
 use Throwable;
@@ -23,6 +24,7 @@ final class SiteHealthDiagnostics
         private readonly ?FileEditorPolicy $fileEditorPolicy = null,
         private readonly ?SecurityHeadersPolicy $securityHeadersPolicy = null,
         ?PluginUpdateCompatibility $pluginUpdateCompatibility = null,
+        private readonly ?LoginProtectionPolicy $loginProtectionPolicy = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
@@ -62,6 +64,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_file_editor' => [
                 'label' => 'Bastion: File editor posture',
                 'test' => $this->fileEditor(...),
+            ],
+            'bastion_security_wp_login_protection' => [
+                'label' => 'Bastion: Login Protection',
+                'test' => $this->loginProtection(...),
             ],
             'bastion_security_wp_security_headers' => [
                 'label' => 'Bastion: Security header preset',
@@ -143,6 +149,24 @@ final class SiteHealthDiagnostics
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: File editor posture');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function loginProtection(): array
+    {
+        try {
+            $enabled = $this->loginProtectionPolicy?->isEnabled() ?? false;
+
+            return $this->result(
+                $enabled ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                'Bastion: Login Protection',
+                'Evidence: The per-site Login Protection setting is ' . ($enabled ? 'enabled.' : 'disabled.'),
+                'Meaning: A Good result means only that the setting is enabled; it does not guarantee authentication availability or attack prevention. Standard wp-login and flows through wp_authenticate(), including ordinary XML-RPC, are covered. REST Application Passwords are not covered. Only REMOTE_ADDR identifies the direct peer; forwarded headers are not trusted, so shared proxy users can share a bucket. Transient eviction and read-modify-write races can weaken enforcement. This is not WAF or DDoS protection.',
+                'Remediation: Review Tools > Bastion Security > Hardening, assess shared-address lockout risk, and retain an independent recovery path.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed('Bastion: Login Protection');
         }
     }
 
@@ -272,6 +296,7 @@ final class SiteHealthDiagnostics
             'test' => 'bastion_security_wp_' . match ($label) {
                 'Bastion: HTTPS and admin transport posture' => 'transport',
                 'Bastion: File editor posture' => 'file_editor',
+                'Bastion: Login Protection' => 'login_protection',
                 'Bastion: Security header preset' => 'security_headers',
                 'Bastion: File modification posture' => 'file_modifications',
                 default => 'runtime',

@@ -1,6 +1,6 @@
 # Bastion Security WP
 
-Bastion Security WP provides focused WordPress security posture diagnostics and two reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
+Bastion Security WP provides focused WordPress security posture diagnostics and three reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
 
 ## Quick navigation
 
@@ -8,15 +8,15 @@ Open **Tools > Bastion Security** as an administrator with `manage_options`, the
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Summary counts, the seven Bastion diagnostics, and a link to native WordPress Site Health. |
-| **Hardening** | The reversible WordPress file-editor lock. |
+| **Overview** | Summary counts, the eight Bastion diagnostics, and a link to native WordPress Site Health. |
+| **Hardening** | The reversible WordPress file-editor lock and opt-in Login Protection. |
 | **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
 
 Only the active tab is rendered. Unknown or malformed tab values fall back to **Overview**.
 
 ## Safe activation path
 
-1. Review the seven diagnostics on **Overview**.
+1. Review the eight diagnostics on **Overview**.
 2. Open **Security headers**, select the conservative baseline, and choose **Enable selected**.
 3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
 4. Select only the optional groups you intend to enable. One aggregate acknowledgement covers the selected high-impact groups; it is not required for the baseline or `legacy_cross_domain` alone.
@@ -24,15 +24,16 @@ Only the active tab is rendered. Unknown or malformed tab values fall back to **
 
 ## Current scope
 
-The plugin adds seven deterministic direct tests to WordPress Site Health, in stable order:
+The plugin adds eight deterministic direct tests to WordPress Site Health, in stable order:
 
 1. HTTPS and admin transport posture.
 2. File editor posture.
-3. Security header preset preference.
-4. File modification and update posture.
-5. Runtime compatibility notice.
-6. Read-only pending plugin-update compatibility.
-7. Read-only REST surface inventory.
+3. Login Protection setting and limitations.
+4. Security header preset preference.
+5. File modification and update posture.
+6. Runtime compatibility notice.
+7. Read-only pending plugin-update compatibility.
+8. Read-only REST surface inventory.
 
 The assessments remain request-local and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation. The Bastion dashboard presents the same results with Site Health-inspired, accessible `details`/`summary` markup and links to native WordPress Site Health for the full suite.
 
@@ -57,6 +58,34 @@ Installed plugin headers are not used as fallback target requirements. Results a
 On single-site installations, an administrator can enable or disable a plugin-owned preference through a nonce-protected POST action. When enabled, Bastion defines `DISALLOW_FILE_EDIT` as `true` early in each request only if the constant is not already defined.
 
 Bastion writes only its own WordPress option; it never edits `wp-config.php` or another file. If another source defines `DISALLOW_FILE_EDIT`, Bastion preserves that value, reports its effective result, and does not claim it can override or roll it back. This tool is unavailable on multisite and performs no policy mutation there.
+
+### Login Protection
+
+Login Protection is an opt-in, per-site, best-effort throttle for failed WordPress authentication. Enable it under **Tools > Bastion Security > Hardening** only after acknowledging that legitimate users can be temporarily blocked, especially when they use a shared proxy address. Disabling it stops enforcement and advances an internal generation so prior temporary buckets are abandoned. **Reset temporary blocks** also advances that generation, preserves the enabled setting, and preserves aggregate failed/throttled metrics.
+
+Within a 15-minute rolling window, the policy uses these progressive thresholds:
+
+| Dimension | Failures | Cooldown |
+|---|---:|---:|
+| Normalized username or email | 5 / 8 / 12 | 60 seconds / 5 minutes / 15 minutes |
+| Direct peer address | 50 / 100 / 200 | 60 seconds / 5 minutes / 15 minutes |
+
+There are no permanent locks or sleeps. A successful, non-blocked authentication clears only that normalized identity bucket; it never clears the shared address bucket. The same generic error is returned for either dimension so the response does not identify which bucket matched.
+
+Bucket keys are HMAC SHA-256 values derived with the WordPress authentication secret. Raw usernames, email addresses, and IP addresses are not stored in buckets or rendered in the UI. Rotating that secret naturally abandons the old transient namespace.
+
+Coverage includes standard `wp-login.php` and every flow through `wp_authenticate()`, including ordinary XML-RPC authentication. REST Application Password authentication is explicitly not covered. Final enforcement runs after normal authentication work, so it does not avoid WordPress user lookup or password hashing and is not pre-authentication cost protection.
+
+Only the directly connected peer from `REMOTE_ADDR` is considered. `Forwarded` and `X-Forwarded-For` are never trusted. This avoids accepting caller-controlled forwarding data, but sites behind a reverse proxy can place many users in one shared address bucket. Confirm the deployment topology and retain independent recovery access before enabling the tool.
+
+Enforcement uses expiring WordPress transients and read-modify-write updates. Transient eviction or concurrent requests can weaken enforcement, while aggregate metrics can undercount. Login Protection is not a WAF, DDoS defense, availability guarantee, or general security guarantee.
+
+#### Safe smoke check
+
+1. Keep a separate recovery path available, such as hosting control-panel or CLI access; do not test against the only administrator session.
+2. Enable Login Protection and confirm its diagnostic changes to **Good**, meaning only that the setting is enabled.
+3. Use a disposable non-administrator identity for any failed-login check, and stop before reaching a threshold unless you intentionally have recovery access.
+4. Confirm **Reset temporary blocks** preserves metrics, then disable Login Protection to verify rollback.
 
 ### HTTP security-header policies
 
@@ -99,9 +128,9 @@ The behavior is deliberately add-only:
 - Applying the policies repeatedly does not duplicate a header.
 - Preferences remain per-site on multisite; Bastion does not claim network-wide enforcement.
 
-#### Intentionally omitted reference behavior
+#### Intentionally omitted behavior
 
-The optional set is behavior inspired by the public **Headers Security Advanced & HSTS WP v5.3.4** reference. Bastion does not copy its code and does not claim parity. It intentionally omits direct-header and multi-hook emission as well as policies that lack a safe site-specific contract.
+The optional set is limited to policies with a bounded, site-specific contract. Bastion intentionally avoids direct-header and multi-hook emission, along with policies that cannot be configured safely without additional site context.
 
 Bastion does not emit `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`, or `Access-Control-Allow-Origin` because no explicit origin contract is configured. It also omits `Cross-Origin-Opener-Policy: unsafe-none`, `Cross-Origin-Resource-Policy: cross-origin`, HSTS `includeSubDomains` and `preload`, and `Content-Security-Policy-Report-Only` without a configured reporting endpoint. Deprecated headers and other permissive or no-op values are excluded.
 
@@ -119,7 +148,7 @@ Output is escaped, capped at 100 deterministically sorted routes, and reports om
 
 ## Explicit non-goals
 
-Bastion includes no public mutation endpoint, REST policy, login throttling, file integrity monitoring, audit log, alerts, cron tasks, filesystem writes, or cache. The only settings UI and database writes are the Tools page and the plugin-owned file-editor, header-baseline, and enabled-group options described above. Mutations use WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
+Bastion includes no public mutation endpoint, REST policy, file integrity monitoring, audit log, alerts, cron tasks, filesystem writes, permanent login locks, allowlists, or email notifications. The only settings UI and database writes are the Tools page and the plugin-owned file-editor, Login Protection configuration/metrics/transients, header-baseline, and enabled-group state described above. Mutations use WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
 
 ## Compatibility target
 
@@ -156,9 +185,10 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 
 - **Header policies:** open **Tools > Bastion Security > Security headers**, then disable selected policies, use an individual control, or use the isolated **Disable all Bastion headers** action. Recheck the displayed state if a two-option operation reports a partial failure. Bastion immediately stops future emission for preferences that were disabled. HSTS may remain in browsers for up to 24 hours after its last received policy. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
 - **File-editor lock:** open **Tools > Bastion Security > Hardening** and disable it to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
-- **Plugin:** deactivate Bastion to remove its seven Site Health tests and future runtime enforcement. Plugin-owned options remain in the database for later reactivation.
+- **Login Protection:** open **Tools > Bastion Security > Hardening** and disable it. Disabling advances the generation and invalidates prior temporary blocks; aggregate metrics remain. Use **Reset temporary blocks** to invalidate blocks without disabling or clearing metrics.
+- **Plugin:** deactivate Bastion to remove its eight Site Health tests and future runtime enforcement. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
 
-Bastion creates no cron, cache, log, or filesystem state requiring cleanup.
+Bastion creates no cron, log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.
 
 ## License
 
