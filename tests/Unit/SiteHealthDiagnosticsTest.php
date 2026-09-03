@@ -130,13 +130,19 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString('will not override or remove', $result['actions']);
     }
 
-    public function testSecurityHeaderDiagnosticReportsPreferenceOnlyWithoutClaimingDelivery(): void
+    public function testSecurityHeaderDiagnosticReportsBaselineAndActiveGroupsWithoutClaimingDelivery(): void
     {
         $disabled = $this->diagnostics()->securityHeaders();
         self::assertSame('recommended', $disabled['status']);
         self::assertSame('Bastion: Security header preset', $disabled['label']);
+        self::assertStringContainsString('baseline preference is disabled', $disabled['description']);
+        self::assertStringContainsString('0 active optional groups (none)', $disabled['description']);
 
-        $enabledPolicy = new SecurityHeadersPolicy(static fn (): bool => true, static fn (): bool => true);
+        $enabledPolicy = new SecurityHeadersPolicy(
+            static fn (): bool => true,
+            static fn (): bool => true,
+            static fn (): array => ['resource_isolation', 'framing'],
+        );
         $enabled = new SiteHealthDiagnostics(
             fn (string $key): mixed => $this->values[$key],
             static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
@@ -145,10 +151,31 @@ final class SiteHealthDiagnosticsTest extends TestCase
         $result = $enabled->securityHeaders();
 
         self::assertSame('good', $result['status']);
-        self::assertStringContainsString('preference is enabled', $result['description']);
-        self::assertStringContainsString('does not verify end-to-end delivery', $result['description']);
+        self::assertStringContainsString('baseline preference is enabled', $result['description']);
+        self::assertStringContainsString('2 active optional groups (framing, resource_isolation)', $result['description']);
+        self::assertStringContainsString('configuration is not end-to-end delivery proof', $result['description']);
         self::assertStringContainsString('browser or CDN edge', $result['actions']);
         self::assertStringContainsString('per-site', $result['description']);
+    }
+
+    public function testOptionalGroupsAloneMakeTheDiagnosticConfiguredButNotProven(): void
+    {
+        $policy = new SecurityHeadersPolicy(
+            static fn (): bool => false,
+            static fn (): bool => true,
+            static fn (): array => ['legacy_cross_domain'],
+        );
+        $diagnostics = new SiteHealthDiagnostics(
+            fn (string $key): mixed => $this->values[$key],
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            securityHeadersPolicy: $policy,
+        );
+
+        $result = $diagnostics->securityHeaders();
+
+        self::assertSame('good', $result['status']);
+        self::assertStringContainsString('baseline preference is disabled', $result['description']);
+        self::assertStringContainsString('1 active optional group (legacy_cross_domain)', $result['description']);
     }
 
     public function testBootstrapRegistersOnlyWpHeadersAndNeverEmitsHeadersDirectly(): void

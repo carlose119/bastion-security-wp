@@ -2,12 +2,13 @@
 
 Bastion Security WP provides focused WordPress security posture diagnostics and two reversible hardening tools. It reports evidence, not a guarantee of invulnerability.
 
-## Quick usage
+## Safe activation path
 
 1. Open **Tools > Bastion Security** as an administrator with `manage_options`.
-2. Review the seven Bastion diagnostics, including cached pending plugin-update compatibility.
-3. Enable either the WordPress file-editor lock or the conservative HTTP security-header preset.
-4. For the header preset, verify the final response headers in browser developer tools and, when applicable, at the CDN edge.
+2. Review the seven Bastion diagnostics and enable the conservative security-header baseline first.
+3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
+4. Enable optional policy groups one at a time. Read the policy-specific warning, acknowledge high-impact groups, and verify the affected user flows after every change.
+5. Treat HSTS as the final step: confirm the current request, WordPress Address, and Site Address all use HTTPS before starting its 24-hour trial.
 
 ## Current scope
 
@@ -45,30 +46,54 @@ On single-site installations, an administrator can enable or disable a plugin-ow
 
 Bastion writes only its own WordPress option; it never edits `wp-config.php` or another file. If another source defines `DISALLOW_FILE_EDIT`, Bastion preserves that value, reports its effective result, and does not claim it can override or roll it back. This tool is unavailable on multisite and performs no policy mutation there.
 
-### HTTP security-header preset
+### HTTP security-header policies
 
-The per-site preset adds exactly these headers through WordPress's `wp_headers` filter:
+Bastion provides one backward-compatible baseline toggle and seven independent optional groups. All optional groups are **off by default**. They remain independent of the baseline, so an administrator can stage and verify one policy at a time.
+
+The baseline adds exactly:
 
 ```text
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 ```
 
+The optional groups add these exact values, in this deterministic order when enabled:
+
+| Group | Header emitted | Primary breakage risk |
+|---|---|---|
+| `framing` | `X-Frame-Options: SAMEORIGIN` | Breaks legitimate cross-origin iframe embedding. |
+| `browser_capabilities` | `Permissions-Policy: camera=(), microphone=(), geolocation=()` | Disables those browser capabilities, including integrations that need them. |
+| `legacy_cross_domain` | `X-Permitted-Cross-Domain-Policies: none` | Breaks any remaining legacy Adobe cross-domain policy dependency. |
+| `mixed_content_upgrade` | `Content-Security-Policy: upgrade-insecure-requests;` | HTTPS-upgraded subresources fail when no HTTPS resource exists. |
+| `hsts_trial` | `Strict-Transport-Security: max-age=86400` | Returning browsers can become unable to reach a site with broken HTTPS. |
+| `opener_isolation` | `Cross-Origin-Opener-Policy: same-origin-allow-popups` | Changes popup/opener relationships used by authentication, payment, or integrations. |
+| `resource_isolation` | `Cross-Origin-Resource-Policy: same-site` | Blocks intentional cross-site consumers of this site's resources. |
+
+#### Activation and rollback rules
+
+Enabling `framing`, `browser_capabilities`, `mixed_content_upgrade`, `hsts_trial`, `opener_isolation`, or `resource_isolation` requires an explicit risk acknowledgement. Disabling any group never requires acknowledgement.
+
+HSTS enablement is also blocked unless the current administration request uses SSL and both the configured WordPress Address and Site Address begin with HTTPS. Bastion skips HSTS emission on every non-HTTPS request even when its preference is enabled. Disabling HSTS stops future Bastion emission immediately, but browsers may retain the 24-hour policy until it expires; disabling the plugin cannot erase policy already remembered by a browser.
+
 The behavior is deliberately add-only:
 
-- Disabled means the WordPress header array is returned unchanged.
-- Enabled appends only missing preset headers, in the order shown above.
-- Existing names are detected case-insensitively. Their original names, values, and ordering are preserved.
-- Applying the preset repeatedly does not duplicate either header.
-- The option remains per-site on multisite; Bastion does not claim network-wide enforcement.
+- A disabled baseline adds neither baseline header; disabled optional groups add nothing.
+- Enabled policies append only missing header names in baseline-then-group order.
+- Existing names are detected case-insensitively. Their original spelling, values, and ordering are preserved without removal or override.
+- Applying the policies repeatedly does not duplicate a header.
+- Preferences remain per-site on multisite; Bastion does not claim network-wide enforcement.
 
-This tool does **not** add CSP, HSTS, X-Frame-Options, Permissions-Policy, or any other header. It does not call PHP's `header()` directly.
+#### Intentionally omitted reference behavior
 
-#### Coverage and verification limit
+The optional set is behavior inspired by the public **Headers Security Advanced & HSTS WP v5.3.4** reference. Bastion does not copy its code and does not claim parity. It intentionally omits direct-header and multi-hook emission as well as policies that lack a safe site-specific contract.
 
-`wp_headers` is applied by `WP::send_headers()`, so the preset covers standard front-end responses that pass through that WordPress path. It is not guaranteed for wp-admin, wp-login, REST responses, redirects, static files, CDN or cache responses, or headers emitted by the web server.
+Bastion does not emit `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`, or `Access-Control-Allow-Origin` because no explicit origin contract is configured. It also omits `Cross-Origin-Opener-Policy: unsafe-none`, `Cross-Origin-Resource-Policy: cross-origin`, HSTS `includeSubDomains` and `preload`, and `Content-Security-Policy-Report-Only` without a configured reporting endpoint. Deprecated headers and other permissive or no-op values are excluded.
 
-A Good Site Health result means only that Bastion's per-site preference is enabled. It does not verify end-to-end delivery. Check the final headers in browser developer tools and at the CDN edge when a CDN is present.
+#### Coverage and edge verification
+
+Bastion emits only through WordPress's `wp_headers` filter and never calls PHP's `header()` directly. `wp_headers` is applied by `WP::send_headers()`, so coverage is limited to standard PHP front-end responses that pass through that WordPress path. It is not guaranteed for wp-admin, wp-login, REST responses, redirects, static files, cache hits, CDN responses, or headers emitted by a proxy or web server.
+
+The single **Bastion: Security header preset** diagnostic reports baseline state and active optional group names. A Good result means only that at least one Bastion preference is configured; configuration is not end-to-end delivery proof. Check final headers and behavior in the browser and at the CDN edge when a CDN is present.
 
 ## REST inventory boundaries
 
@@ -78,7 +103,7 @@ Output is escaped, capped at 100 deterministically sorted routes, and reports om
 
 ## Explicit non-goals
 
-Bastion includes no public mutation endpoint, REST policy, login throttling, file integrity monitoring, audit log, alerts, cron tasks, filesystem writes, or cache. The only settings UI and database writes are the Tools page and the two plugin-owned options described above. Mutations use WordPress administrative capability and nonce protections; there is no AJAX or REST mutation path.
+Bastion includes no public mutation endpoint, REST policy, login throttling, file integrity monitoring, audit log, alerts, cron tasks, filesystem writes, or cache. The only settings UI and database writes are the Tools page and the plugin-owned file-editor, header-baseline, and enabled-group options described above. Mutations use WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
 
 ## Compatibility target
 
@@ -113,7 +138,7 @@ Archive entries are sorted, use normalized `/` separators, fixed permissions, an
 
 ## Rollback
 
-- **Header preset:** disable it under **Tools > Bastion Security**. Bastion immediately stops adding its two headers. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
+- **Header policies:** disable the affected optional group or baseline under **Tools > Bastion Security**. Bastion immediately stops future emission. HSTS may remain in browsers for up to 24 hours after its last received policy. Headers supplied by WordPress, another plugin, a cache, CDN, proxy, or web server remain unchanged.
 - **File-editor lock:** disable it on the same page to stop Bastion from defining the constant on the next request. Externally defined values remain unchanged.
 - **Plugin:** deactivate Bastion to remove its seven Site Health tests and future runtime enforcement. Plugin-owned options remain in the database for later reactivation.
 

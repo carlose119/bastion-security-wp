@@ -10,6 +10,13 @@ namespace {
         }
     }
 
+    if (! function_exists('esc_html')) {
+        function esc_html(string $value): string
+        {
+            return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        }
+    }
+
     if (! function_exists('esc_attr')) {
         function esc_attr(string $value): string
         {
@@ -46,119 +53,309 @@ namespace BastionSecurityWP\Tests\Unit {
 
     final class SecurityHeadersAdminTest extends TestCase
     {
-        public function testAuthorizedValidCommandsAreAppliedAndRedirected(): void
+        public function testLegacyBaselineFormRemainsBackwardCompatible(): void
         {
-            $stored = false;
+            $baseline = false;
+            $groups = [];
             $redirects = [];
-            $admin = $this->admin($stored, true, true, $redirects);
+            $admin = $this->admin($baseline, $groups, $redirects);
 
             $admin->handle(['command' => 'enable', '_wpnonce' => 'valid']);
-            self::assertTrue($stored);
+            self::assertTrue($baseline);
             self::assertStringContainsString('bastion_security_headers_notice=updated', $redirects[0]);
 
-            $admin->handle(['command' => 'enable', '_wpnonce' => 'valid']);
-            self::assertStringContainsString('bastion_security_headers_notice=unchanged', $redirects[1]);
-
             $admin->handle(['command' => 'disable', '_wpnonce' => 'valid']);
-            self::assertFalse($stored);
+            self::assertFalse($baseline);
         }
 
-        public function testUnauthorizedNonceAndCommandRejectionsNeverMutate(): void
+        public function testGroupTargetUsesStrictAllowlistsAndTargetBoundNonce(): void
         {
-            $stored = false;
+            $baseline = false;
+            $groups = [];
             $redirects = [];
+            $verifiedActions = [];
+            $admin = $this->admin($baseline, $groups, $redirects, verifiedActions: $verifiedActions);
 
-            $this->admin($stored, false, true, $redirects)->handle(['command' => 'enable', '_wpnonce' => 'valid']);
-            $this->admin($stored, true, false, $redirects)->handle(['command' => 'enable', '_wpnonce' => 'invalid']);
-            $this->admin($stored, true, true, $redirects)->handle(['command' => 'toggle', '_wpnonce' => 'valid']);
-            $this->admin($stored, true, true, $redirects)->handle(['command' => ['enable'], '_wpnonce' => 'valid']);
+            $admin->handle($this->groupPost('legacy_cross_domain', 'enable'));
+            self::assertSame(['legacy_cross_domain'], $groups);
+            self::assertSame(SecurityHeadersAdmin::NONCE_ACTION . ':group:legacy_cross_domain', $verifiedActions[0]);
 
-            self::assertFalse($stored);
-            self::assertStringContainsString('forbidden', $redirects[0]);
-            self::assertStringContainsString('invalid_nonce', $redirects[1]);
-            self::assertStringContainsString('invalid_command', $redirects[2]);
+            $admin->handle(['target' => 'other', 'group' => 'framing', 'command' => 'enable', '_wpnonce' => 'valid']);
+            $admin->handle($this->groupPost('unknown', 'enable'));
+            $admin->handle(['target' => 'group', 'group' => 'framing', 'command' => 'toggle', '_wpnonce' => 'valid']);
+
+            self::assertSame(['legacy_cross_domain'], $groups);
+            self::assertStringContainsString('invalid_target', $redirects[1]);
+            self::assertStringContainsString('invalid_group', $redirects[2]);
             self::assertStringContainsString('invalid_command', $redirects[3]);
         }
 
-        public function testWriteFailureIsReportedWithoutClaimingSuccess(): void
+        public function testCapabilityAndNonceFailuresNeverMutate(): void
         {
-            $stored = false;
+            $baseline = false;
+            $groups = [];
             $redirects = [];
-            $admin = $this->admin($stored, true, true, $redirects, false);
 
-            $admin->handle(['command' => 'enable', '_wpnonce' => 'valid']);
+            $this->admin($baseline, $groups, $redirects, authorized: false)->handle($this->groupPost('legacy_cross_domain', 'enable'));
+            $this->admin($baseline, $groups, $redirects, nonceValid: false)->handle($this->groupPost('legacy_cross_domain', 'enable'));
 
-            self::assertFalse($stored);
-            self::assertStringContainsString('write_failed', $redirects[0]);
+            self::assertSame([], $groups);
+            self::assertStringContainsString('forbidden', $redirects[0]);
+            self::assertStringContainsString('invalid_nonce', $redirects[1]);
         }
 
-        public function testSectionRendersExactPresetCoverageRollbackFormAndNotices(): void
+        public function testAcknowledgementIsRequiredOnlyWhenEnablingHighImpactGroups(): void
         {
-            $stored = false;
+            $baseline = false;
+            $groups = ['framing'];
             $redirects = [];
-            $admin = $this->admin($stored, true, true, $redirects);
+            $admin = $this->admin($baseline, $groups, $redirects);
+
+            $admin->handle($this->groupPost('framing', 'disable'));
+            self::assertSame([], $groups);
+
+            $admin->handle($this->groupPost('legacy_cross_domain', 'enable'));
+            self::assertSame(['legacy_cross_domain'], $groups);
+
+            $admin->handle($this->groupPost('browser_capabilities', 'enable'));
+            self::assertSame(['legacy_cross_domain'], $groups);
+            self::assertStringContainsString('acknowledgement_required', $redirects[2]);
+
+            $admin->handle($this->groupPost('browser_capabilities', 'enable', true));
+            self::assertSame(['browser_capabilities', 'legacy_cross_domain'], $groups);
+        }
+
+        public function testEveryHighImpactGroupRequiresAcknowledgementWhileLegacyGroupDoesNot(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects);
+
+            foreach (['framing', 'browser_capabilities', 'mixed_content_upgrade', 'hsts_trial', 'opener_isolation', 'resource_isolation'] as $group) {
+                $admin->handle($this->groupPost($group, 'enable'));
+            }
+
+            self::assertSame([], $groups);
+            foreach (array_slice($redirects, 0, 6) as $redirect) {
+                self::assertStringContainsString('acknowledgement_required', $redirect);
+            }
+
+            $admin->handle($this->groupPost('legacy_cross_domain', 'enable'));
+            self::assertSame(['legacy_cross_domain'], $groups);
+        }
+
+        public function testHstsReadinessBlocksEnableButNeverBlocksDisable(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects, hstsReady: false);
+
+            $admin->handle($this->groupPost('hsts_trial', 'enable', true));
+            self::assertSame([], $groups);
+            self::assertStringContainsString('hsts_not_ready', $redirects[0]);
+
+            $groups = ['hsts_trial'];
+            $admin->handle($this->groupPost('hsts_trial', 'disable'));
+            self::assertSame([], $groups);
+        }
+
+        public function testHstsReadinessAllowsAcknowledgedEnableWhenTheInjectedCheckPasses(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects, hstsReady: true);
+
+            $admin->handle($this->groupPost('hsts_trial', 'enable', true));
+
+            self::assertSame(['hsts_trial'], $groups);
+            self::assertStringContainsString('updated', $redirects[0]);
+        }
+
+        public function testGroupWritesAreIdempotentAndFailuresAreReported(): void
+        {
+            $baseline = false;
+            $groups = ['legacy_cross_domain'];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects);
+
+            $admin->handle($this->groupPost('legacy_cross_domain', 'enable'));
+            self::assertStringContainsString('unchanged', $redirects[0]);
+
+            $failing = $this->admin($baseline, $groups, $redirects, writeSucceeds: false);
+            $failing->handle($this->groupPost('resource_isolation', 'enable', true));
+            self::assertSame(['legacy_cross_domain'], $groups);
+            self::assertStringContainsString('write_failed', $redirects[1]);
+        }
+
+        public function testSectionRendersExactValuesStatesRisksCoverageFormsAndNotices(): void
+        {
+            $baseline = false;
+            $groups = ['legacy_cross_domain', 'hsts_trial'];
+            $redirects = [];
+            $admin = $this->admin($baseline, $groups, $redirects);
 
             ob_start();
-            $admin->renderToolSection('write_failed');
+            $admin->renderToolSection('hsts_not_ready');
             $html = (string) ob_get_clean();
 
-            self::assertStringContainsString('HTTP security header preset', $html);
-            self::assertStringContainsString('X-Content-Type-Options: nosniff', $html);
-            self::assertStringContainsString('Referrer-Policy: strict-origin-when-cross-origin', $html);
-            self::assertStringContainsString('Content-Security-Policy (CSP)', $html);
-            self::assertStringContainsString('Strict-Transport-Security (HSTS)', $html);
-            self::assertStringContainsString('X-Frame-Options', $html);
-            self::assertStringContainsString('Permissions-Policy', $html);
-            self::assertStringContainsString('site-specific validation', $html);
-            self::assertStringContainsString('only adds missing headers', $html);
+            foreach ([
+                'X-Content-Type-Options: nosniff',
+                'Referrer-Policy: strict-origin-when-cross-origin',
+                'X-Frame-Options: SAMEORIGIN',
+                'Permissions-Policy: camera=(), microphone=(), geolocation=()',
+                'X-Permitted-Cross-Domain-Policies: none',
+                'Content-Security-Policy: upgrade-insecure-requests;',
+                'Strict-Transport-Security: max-age=86400',
+                'Cross-Origin-Opener-Policy: same-origin-allow-popups',
+                'Cross-Origin-Resource-Policy: same-site',
+            ] as $policy) {
+                self::assertStringContainsString($policy, $html);
+            }
+            self::assertSame(8, substr_count($html, 'name="target"'));
+            self::assertSame(7, substr_count($html, 'name="group"'));
+            self::assertStringContainsString('nonce-for-' . SecurityHeadersAdmin::NONCE_ACTION . ':group:framing', $html);
+            self::assertStringContainsString('Enabled', $html);
+            self::assertStringContainsString('Disabled', $html);
+            self::assertSame(5, substr_count($html, 'name="acknowledgement"'));
+            self::assertStringContainsString('current request, home URL, and site URL must all use HTTPS', $html);
+            self::assertStringContainsString('browsers may retain the 24-hour policy until it expires', $html);
+            self::assertStringContainsString('safe-intent policy set', $html);
+            self::assertStringContainsString('not byte-for-byte parity', $html);
+            self::assertSame(7, substr_count($html, 'Coverage: this group is emitted only on eligible wp_headers front-end responses'));
             self::assertStringContainsString('standard front-end responses', $html);
             self::assertStringContainsString('wp-admin', $html);
-            self::assertStringContainsString('wp-login', $html);
-            self::assertStringContainsString('REST', $html);
-            self::assertStringContainsString('redirects', $html);
-            self::assertStringContainsString('static', $html);
             self::assertStringContainsString('CDN', $html);
-            self::assertStringContainsString('web server', $html);
-            self::assertStringContainsString('per-site', $html);
-            self::assertStringContainsString('name="action" value="' . SecurityHeadersAdmin::POST_ACTION . '"', $html);
-            self::assertStringContainsString('name="command" value="enable"', $html);
-            self::assertStringContainsString('could not save', $html);
+            self::assertStringContainsString('could not confirm HSTS readiness', $html);
 
-            $stored = true;
-            ob_start();
-            $admin->renderToolSection('unchanged');
-            $enabledHtml = (string) ob_get_clean();
-
-            self::assertStringContainsString('name="command" value="disable"', $enabledHtml);
-            self::assertStringContainsString('rollback', strtolower($enabledHtml));
-            self::assertStringContainsString('already in the requested state', $enabledHtml);
+            $visibleText = strip_tags($html);
+            foreach ([
+                'Access-Control-Allow-*',
+                'explicit allowed-origin contract',
+                'unsafe-none',
+                'cross-origin',
+                'no meaningful isolation',
+                'includeSubDomains',
+                'preload',
+                'trial mode',
+                'Report-Only',
+                'configured reporting endpoint',
+                'deprecated headers',
+                'safe intent rather than byte parity',
+            ] as $omissionDisclosure) {
+                self::assertStringContainsString($omissionDisclosure, $visibleText);
+            }
         }
 
-        /** @param list<string> $redirects */
+        public function testTechnicalTokensAreEscapedSeparatelyFromLiteralTranslationSourceStrings(): void
+        {
+            $source = file_get_contents(__DIR__ . '/../../src/Admin/SecurityHeadersAdmin.php');
+            self::assertIsString($source);
+
+            $translationCallWithDynamicSource = '/\\\\(?:__|_e|esc_html__|esc_attr__|esc_html_e|esc_attr_e)\\s*\\(\\s*+([^\'\"])/';
+            self::assertSame(
+                0,
+                preg_match_all($translationCallWithDynamicSource, $source, $matches),
+                'Translation function source strings must be static literals; found: ' . implode(', ', $matches[0] ?? []),
+            );
+        }
+
+        public function testTechnicalTokensAreNotEmbeddedInTranslationStringsAndAreEscapedSeparately(): void
+        {
+            $source = (string) file_get_contents(__DIR__ . '/../../src/Admin/SecurityHeadersAdmin.php');
+
+            foreach ([
+                'X-Content-Type-Options',
+                'nosniff',
+                'Referrer-Policy',
+                'strict-origin-when-cross-origin',
+                'Access-Control-Allow-*',
+                'unsafe-none',
+                'cross-origin',
+                'includeSubDomains',
+                'preload',
+                'Report-Only',
+            ] as $technicalToken) {
+                self::assertStringContainsString(
+                    "\\esc_html('" . $technicalToken . "')",
+                    $source,
+                    $technicalToken . ' must be escaped independently.',
+                );
+                self::assertDoesNotMatchRegularExpression(
+                    '/\\\\(?:__|esc_html__)\\(\'[^\']*' . preg_quote($technicalToken, '/') . '/',
+                    $source,
+                    $technicalToken . ' must not be embedded in a translation source string.',
+                );
+            }
+
+            self::assertStringContainsString("\\esc_html(\$definition['header']) . ': ' . \\esc_html(\$definition['value'])", $source);
+            self::assertStringNotContainsString('<code>X-Content-Type-Options: nosniff</code>', $source);
+        }
+
+        /** @return array<string, string> */
+        private function groupPost(string $group, string $command, bool $acknowledge = false): array
+        {
+            $post = [
+                'target' => 'group',
+                'group' => $group,
+                'command' => $command,
+                '_wpnonce' => 'valid',
+            ];
+            if ($acknowledge) {
+                $post['acknowledgement'] = '1';
+            }
+
+            return $post;
+        }
+
+        /** @param list<string> $groups
+         *  @param list<string> $redirects
+         *  @param list<string> $verifiedActions
+         */
         private function admin(
-            bool &$stored,
-            bool $authorized,
-            bool $nonceValid,
+            bool &$baseline,
+            array &$groups,
             array &$redirects,
+            bool $authorized = true,
+            bool $nonceValid = true,
             bool $writeSucceeds = true,
+            bool $hstsReady = true,
+            array &$verifiedActions = [],
         ): SecurityHeadersAdmin {
             $policy = new SecurityHeadersPolicy(
-                static function () use (&$stored): bool {
-                    return $stored;
+                static function () use (&$baseline): bool {
+                    return $baseline;
                 },
-                static function (bool $enabled) use (&$stored, $writeSucceeds): bool {
+                static function (bool $enabled) use (&$baseline, $writeSucceeds): bool {
                     if ($writeSucceeds) {
-                        $stored = $enabled;
+                        $baseline = $enabled;
                     }
 
                     return $writeSucceeds;
                 },
+                static function () use (&$groups): array {
+                    return $groups;
+                },
+                static function (array $enabledGroups) use (&$groups, $writeSucceeds): bool {
+                    if ($writeSucceeds) {
+                        $groups = $enabledGroups;
+                    }
+
+                    return $writeSucceeds;
+                },
+                static fn (): bool => true,
             );
 
             return new SecurityHeadersAdmin(
                 $policy,
                 static fn (string $capability): bool => $authorized && $capability === 'manage_options',
-                static fn (string $nonce, string $action): bool => $nonceValid && $nonce === 'valid' && $action === SecurityHeadersAdmin::NONCE_ACTION,
+                static function (string $nonce, string $action) use ($nonceValid, &$verifiedActions): bool {
+                    $verifiedActions[] = $action;
+
+                    return $nonceValid && $nonce === 'valid';
+                },
                 static function (string $url) use (&$redirects): bool {
                     $redirects[] = $url;
 
@@ -166,6 +363,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 },
                 static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
                 static function (): void {},
+                static fn (): bool => $hstsReady,
             );
         }
     }

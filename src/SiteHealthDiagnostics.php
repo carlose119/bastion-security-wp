@@ -150,14 +150,24 @@ final class SiteHealthDiagnostics
     public function securityHeaders(): array
     {
         try {
-            $enabled = $this->securityHeadersPolicy?->isEnabled() ?? false;
+            $baselineEnabled = $this->securityHeadersPolicy?->isEnabled() ?? false;
+            $groups = $this->securityHeadersPolicy?->enabledGroupIds() ?? [];
+            $groupCount = count($groups);
+            $groupSummary = $groupCount === 0 ? 'none' : implode(', ', $groups);
+            $configured = $baselineEnabled || $groupCount > 0;
 
             return $this->result(
-                $enabled ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                $configured ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
                 'Bastion: Security header preset',
-                'Evidence: The per-site Bastion security-header preference is ' . ($enabled ? 'enabled.' : 'disabled.'),
-                'Meaning: A Good result only means the Bastion preference is enabled; it does not verify end-to-end delivery of either header.',
-                'Remediation: Open Tools > Bastion Security to review the preset, then inspect final response headers at the browser or CDN edge.',
+                sprintf(
+                    'Evidence: The per-site Bastion security-header baseline preference is %s; %d active optional %s (%s).',
+                    $baselineEnabled ? 'enabled' : 'disabled',
+                    $groupCount,
+                    $groupCount === 1 ? 'group' : 'groups',
+                    $groupSummary,
+                ),
+                'Meaning: A Good result only means at least one Bastion preference is configured; configuration is not end-to-end delivery proof.',
+                'Remediation: Open Tools > Bastion Security to review the policies, then inspect final response headers at the browser or CDN edge.',
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: Security header preset');

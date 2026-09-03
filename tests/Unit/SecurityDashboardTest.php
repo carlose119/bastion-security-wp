@@ -96,7 +96,9 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('WordPress file editor lock', $html);
             self::assertStringContainsString('HTTP security header preset', $html);
             self::assertTrue(strpos($html, 'WordPress file editor lock') < strpos($html, 'HTTP security header preset'));
-            self::assertSame(2, substr_count($html, 'name="command" value="enable"'));
+            self::assertSame(9, substr_count($html, 'name="command" value="enable"'));
+            self::assertStringContainsString('X-Frame-Options: SAMEORIGIN', $html);
+            self::assertStringContainsString('Strict-Transport-Security: max-age=86400', $html);
             self::assertStringNotContainsString('wordpress_core', $html);
         }
 

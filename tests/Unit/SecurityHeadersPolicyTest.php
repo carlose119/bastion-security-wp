@@ -9,90 +9,238 @@ use PHPUnit\Framework\TestCase;
 
 final class SecurityHeadersPolicyTest extends TestCase
 {
-    public function testDisabledPolicyIsAnExactNoOp(): void
+    private const GROUP_HEADERS = [
+        'framing' => ['X-Frame-Options', 'SAMEORIGIN'],
+        'browser_capabilities' => ['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
+        'legacy_cross_domain' => ['X-Permitted-Cross-Domain-Policies', 'none'],
+        'mixed_content_upgrade' => ['Content-Security-Policy', 'upgrade-insecure-requests;'],
+        'hsts_trial' => ['Strict-Transport-Security', 'max-age=86400'],
+        'opener_isolation' => ['Cross-Origin-Opener-Policy', 'same-origin-allow-popups'],
+        'resource_isolation' => ['Cross-Origin-Resource-Policy', 'same-site'],
+    ];
+
+    public function testBackwardCompatibleBaselineRemainsAnExactNoOpWhenDisabled(): void
     {
         $headers = ['Content-Type' => 'text/html', 'X-Existing' => 'keep'];
-        $policy = $this->policy(false);
 
-        self::assertSame($headers, $policy->apply($headers));
+        self::assertSame($headers, $this->policy(false)->apply($headers));
     }
 
-    public function testEnabledPolicyAppendsExactlyThePresetInDeterministicOrder(): void
+    public function testBackwardCompatibleBaselineAppendsOnlyItsExactPreset(): void
     {
-        $headers = $this->policy(true)->apply(['Content-Type' => 'text/html']);
-
         self::assertSame([
             'Content-Type' => 'text/html',
             'X-Content-Type-Options' => 'nosniff',
             'Referrer-Policy' => 'strict-origin-when-cross-origin',
+        ], $this->policy(true)->apply(['Content-Type' => 'text/html']));
+    }
+
+    public function testOptionalGroupsAreOffByDefaultAndCorruptOptionsNormalizeToNone(): void
+    {
+        foreach ([false, null, 'framing', ['framing', 'unknown'], [1], ['framing' => true]] as $stored) {
+            $policy = $this->policy(false, $stored);
+            self::assertSame([], $policy->enabledGroupIds());
+            self::assertSame([], $policy->apply([]));
+        }
+    }
+
+    public function testAllowlistedGroupStateIsExposedInDeterministicOrder(): void
+    {
+        $policy = $this->policy(false, ['resource_isolation', 'framing', 'framing']);
+
+        self::assertSame(array_keys(self::GROUP_HEADERS), array_keys($policy->groupStates()));
+        self::assertSame(['framing', 'resource_isolation'], $policy->enabledGroupIds());
+        self::assertTrue($policy->isGroupEnabled('framing'));
+        self::assertFalse($policy->isGroupEnabled('unknown'));
+    }
+
+    public function testEachGroupEmitsItsExactHeaderAndValueIndependentlyOfBaseline(): void
+    {
+        foreach (self::GROUP_HEADERS as $group => [$name, $value]) {
+            $headers = $this->policy(false, [$group], true)->apply([]);
+            self::assertSame([$name => $value], $headers, $group);
+        }
+    }
+
+    public function testCombinedGroupsFollowFixedOrderRegardlessOfStoredOrder(): void
+    {
+        $policy = $this->policy(false, array_reverse(array_keys(self::GROUP_HEADERS)), true);
+
+        self::assertSame(array_combine(
+            array_column(self::GROUP_HEADERS, 0),
+            array_column(self::GROUP_HEADERS, 1),
+        ), $policy->apply([]));
+    }
+
+    public function testBaselineThenOptionalGroupsHaveDeterministicOrder(): void
+    {
+        $headers = $this->policy(true, ['resource_isolation', 'framing'], true)->apply(['First' => 'keep']);
+
+        self::assertSame([
+            'First' => 'keep',
+            'X-Content-Type-Options' => 'nosniff',
+            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'X-Frame-Options' => 'SAMEORIGIN',
+            'Cross-Origin-Resource-Policy' => 'same-site',
         ], $headers);
     }
 
-    public function testExistingHeaderNamesArePreservedCaseInsensitivelyWithoutReorderingOrOverride(): void
+    public function testExternalHeadersArePreservedCaseInsensitivelyWithoutOverrideOrReordering(): void
     {
         $headers = [
-            'referrer-policy' => 'same-origin',
+            'permissions-policy' => 'external-policy',
             'X-Existing' => 'keep',
-            'x-content-type-options' => 'custom-value',
+            'x-frame-options' => 'DENY',
         ];
+        $policy = $this->policy(false, ['framing', 'browser_capabilities', 'legacy_cross_domain']);
 
-        self::assertSame($headers, $this->policy(true)->apply($headers));
+        self::assertSame([
+            'permissions-policy' => 'external-policy',
+            'X-Existing' => 'keep',
+            'x-frame-options' => 'DENY',
+            'X-Permitted-Cross-Domain-Policies' => 'none',
+        ], $policy->apply($headers));
     }
 
-    public function testApplyingEnabledPolicyIsIdempotent(): void
+    public function testHstsPreferenceIsSkippedOnHttpWithoutAffectingOtherGroups(): void
     {
-        $policy = $this->policy(true);
+        $policy = $this->policy(false, ['hsts_trial', 'opener_isolation'], false);
+
+        self::assertSame([
+            'Cross-Origin-Opener-Policy' => 'same-origin-allow-popups',
+        ], $policy->apply([]));
+        self::assertTrue($policy->isGroupEnabled('hsts_trial'));
+    }
+
+    public function testGroupWritesAreAllowlistedIdempotentAndReportFailure(): void
+    {
+        $stored = ['framing'];
+        $writes = [];
+        $writeSucceeds = true;
+        $policy = new SecurityHeadersPolicy(
+            static fn (): bool => false,
+            static fn (): bool => true,
+            static function () use (&$stored): mixed {
+                return $stored;
+            },
+            static function (array $groups) use (&$stored, &$writes, &$writeSucceeds): bool {
+                $writes[] = $groups;
+                if ($writeSucceeds) {
+                    $stored = $groups;
+                }
+
+                return $writeSucceeds;
+            },
+            static fn (): bool => true,
+        );
+
+        self::assertSame('invalid_group', $policy->setGroupEnabled('unknown', true));
+        self::assertSame('unchanged', $policy->setGroupEnabled('framing', true));
+        self::assertSame('updated', $policy->setGroupEnabled('browser_capabilities', true));
+        self::assertSame(['framing', 'browser_capabilities'], $stored);
+        self::assertSame('updated', $policy->setGroupEnabled('framing', false));
+        self::assertSame(['browser_capabilities'], $stored);
+        $writeSucceeds = false;
+        self::assertSame('write_failed', $policy->setGroupEnabled('resource_isolation', true));
+        self::assertSame([
+            ['framing', 'browser_capabilities'],
+            ['browser_capabilities'],
+            ['browser_capabilities', 'resource_isolation'],
+        ], $writes);
+    }
+
+    public function testApplyingPolicyIsIdempotent(): void
+    {
+        $policy = $this->policy(true, array_keys(self::GROUP_HEADERS));
         $once = $policy->apply([]);
 
         self::assertSame($once, $policy->apply($once));
     }
 
-    public function testPreferenceWritesAreIdempotentAndReportFailure(): void
+    public function testBaselinePreferenceWritesRemainBackwardCompatible(): void
     {
         $stored = false;
         $writes = [];
-        $writeSucceeds = true;
         $policy = new SecurityHeadersPolicy(
             static function () use (&$stored): bool {
                 return $stored;
             },
-            static function (bool $enabled) use (&$stored, &$writes, &$writeSucceeds): bool {
+            static function (bool $enabled) use (&$stored, &$writes): bool {
                 $writes[] = $enabled;
+                $stored = $enabled;
 
-                if ($writeSucceeds) {
-                    $stored = $enabled;
-                }
-
-                return $writeSucceeds;
+                return true;
             },
         );
 
         self::assertSame('updated', $policy->setEnabled(true));
         self::assertSame('unchanged', $policy->setEnabled(true));
-        self::assertSame('updated', $policy->setEnabled(false));
-        $writeSucceeds = false;
-        self::assertSame('write_failed', $policy->setEnabled(true));
-        self::assertSame([true, false, true], $writes);
-        self::assertFalse($policy->isEnabled());
+        self::assertSame([true], $writes);
     }
 
-    public function testPresetExplicitlyExcludesBroaderSecurityHeaders(): void
+    public function testSourceUsesNoDirectOrBroaderHeaderHooksAndOmitsUnsafePolicies(): void
     {
-        $headers = $this->policy(true)->apply([]);
-        $normalized = array_map('strtolower', array_keys($headers));
+        $root = dirname(__DIR__, 2);
+        $policySource = (string) file_get_contents($root . '/src/Security/SecurityHeadersPolicy.php');
+        $bootstrap = (string) file_get_contents($root . '/src/Bootstrap.php');
+        $emissionSources = $policySource . $bootstrap;
 
-        self::assertSame(['x-content-type-options', 'referrer-policy'], $normalized);
-        self::assertNotContains('content-security-policy', $normalized);
-        self::assertNotContains('strict-transport-security', $normalized);
-        self::assertNotContains('x-frame-options', $normalized);
-        self::assertNotContains('permissions-policy', $normalized);
+        self::assertStringContainsString("add_filter('wp_headers'", $bootstrap);
+        self::assertStringNotContainsString('header(', $emissionSources);
+        foreach (['rest_pre_serve_request', 'admin_init'] as $hook) {
+            self::assertStringNotContainsString($hook, $emissionSources);
+        }
+        foreach ([
+            'Access-Control-Allow-Methods',
+            'Access-Control-Allow-Headers',
+            'Access-Control-Allow-Origin',
+            'unsafe-none',
+            'includeSubDomains',
+            'preload',
+            'Content-Security-Policy-Report-Only',
+            'X-XSS-Protection',
+        ] as $omitted) {
+            self::assertStringNotContainsString($omitted, $emissionSources);
+        }
     }
 
-    private function policy(bool $enabled): SecurityHeadersPolicy
+    public function testReadmeDocumentsSafeActivationExactPoliciesRisksAndBoundaries(): void
+    {
+        $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
+
+        foreach ([
+            'X-Content-Type-Options: nosniff',
+            'Referrer-Policy: strict-origin-when-cross-origin',
+            'X-Frame-Options: SAMEORIGIN',
+            'Permissions-Policy: camera=(), microphone=(), geolocation=()',
+            'X-Permitted-Cross-Domain-Policies: none',
+            'Content-Security-Policy: upgrade-insecure-requests;',
+            'Strict-Transport-Security: max-age=86400',
+            'Cross-Origin-Opener-Policy: same-origin-allow-popups',
+            'Cross-Origin-Resource-Policy: same-site',
+        ] as $policy) {
+            self::assertStringContainsString($policy, $readme);
+        }
+        self::assertStringContainsString('off by default', strtolower($readme));
+        self::assertStringContainsString('24-hour', $readme);
+        self::assertStringContainsString('add-only', $readme);
+        self::assertStringContainsString('v5.3.4', $readme);
+        self::assertStringContainsString('does not copy', $readme);
+        self::assertStringContainsString('does not claim parity', $readme);
+        self::assertStringContainsString('wp_headers', $readme);
+        self::assertStringContainsString('CDN edge', $readme);
+        self::assertStringContainsString('Access-Control-Allow-Origin', $readme);
+        self::assertStringContainsString('reporting endpoint', $readme);
+    }
+
+    private function policy(bool $baseline, mixed $groups = [], bool $https = true): SecurityHeadersPolicy
     {
         return new SecurityHeadersPolicy(
-            static fn (): bool => $enabled,
+            static fn (): bool => $baseline,
             static fn (): bool => true,
+            static fn (): mixed => $groups,
+            static fn (): bool => true,
+            static fn (): bool => $https,
         );
     }
 }
