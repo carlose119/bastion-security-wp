@@ -211,7 +211,7 @@ final class PluginUpdateCompatibilityTest extends TestCase
                 throw new RuntimeException('secret exception');
             },
         )->report();
-        $unavailable = $this->diagnostic(plugins: static fn (): null => null)->report();
+        $unavailable = $this->diagnostic(plugins: static fn () => null)->report();
 
         self::assertStringContainsString('Not assessed', $exception['description']);
         self::assertStringNotContainsString('secret exception', serialize($exception));
