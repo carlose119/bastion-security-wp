@@ -8,6 +8,7 @@ use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
 use BastionSecurityWP\Security\PluginActivityAlertPolicy;
 use BastionSecurityWP\Security\SecurityHeadersPolicy;
+use BastionSecurityWP\Security\XmlRpcPingbackPolicy;
 use Closure;
 use Throwable;
 
@@ -27,6 +28,7 @@ final class SiteHealthDiagnostics
         ?PluginUpdateCompatibility $pluginUpdateCompatibility = null,
         private readonly ?LoginProtectionPolicy $loginProtectionPolicy = null,
         private readonly ?PluginActivityAlertPolicy $pluginActivityAlertPolicy = null,
+        private readonly ?XmlRpcPingbackPolicy $xmlRpcPingbackPolicy = null,
     ) {
         $this->observe = Closure::fromCallable($observe ?? self::observe(...));
         $this->escape = Closure::fromCallable($escape ?? static fn (string $value): string => \esc_html($value));
@@ -70,6 +72,10 @@ final class SiteHealthDiagnostics
             'bastion_security_wp_login_protection' => [
                 'label' => 'Bastion: Login Protection',
                 'test' => $this->loginProtection(...),
+            ],
+            'bastion_security_wp_xmlrpc_pingback_protection' => [
+                'label' => 'Bastion: XML-RPC Pingback Protection',
+                'test' => $this->xmlRpcPingbackProtection(...),
             ],
             'bastion_security_wp_plugin_activity_alerts' => [
                 'label' => 'Bastion: Plugin activity email alerts',
@@ -173,6 +179,35 @@ final class SiteHealthDiagnostics
             );
         } catch (Throwable) {
             return $this->notAssessed('Bastion: Login Protection');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function xmlRpcPingbackProtection(): array
+    {
+        try {
+            $state = $this->xmlRpcPingbackPolicy?->state() ?? ['assessed' => false, 'enabled' => false];
+            if (! $state['assessed']) {
+                return $this->result(
+                    DiagnosticStatus::Recommended,
+                    'Bastion: XML-RPC Pingback Protection',
+                    'Evidence: The per-site XML-RPC Pingback Protection setting could not be read.',
+                    'Meaning: Not assessed. Bastion made no claim about pingback method or header filtering.',
+                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Bastion Security > Hardening.',
+                );
+            }
+
+            return $this->result(
+                $state['enabled'] ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
+                'Bastion: XML-RPC Pingback Protection',
+                'Evidence: The readable per-site XML-RPC Pingback Protection setting is ' . ($state['enabled'] ? 'enabled.' : 'disabled.'),
+                'Meaning: A Good result means only that Bastion is configured to remove pingback.ping, pingback.extensions.getPingbacks, and WordPress-filtered X-Pingback headers. It is not absolute enforcement: later same-priority filters and direct server, proxy, or CDN headers are outside this result. Other authenticated XML-RPC methods remain available.',
+                $state['enabled']
+                    ? 'Remediation: Verify application compatibility and final headers independently; disable the setting under Tools > Bastion Security > Hardening if native pingback behavior is required.'
+                    : 'Remediation: Review native pingback compatibility, then enable the per-site setting under Tools > Bastion Security > Hardening if the removals are appropriate.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed('Bastion: XML-RPC Pingback Protection');
         }
     }
 
@@ -327,6 +362,7 @@ final class SiteHealthDiagnostics
                 'Bastion: HTTPS and admin transport posture' => 'transport',
                 'Bastion: File editor posture' => 'file_editor',
                 'Bastion: Login Protection' => 'login_protection',
+                'Bastion: XML-RPC Pingback Protection' => 'xmlrpc_pingback_protection',
                 'Bastion: Plugin activity email alerts' => 'plugin_activity_alerts',
                 'Bastion: Security header preset' => 'security_headers',
                 'Bastion: File modification posture' => 'file_modifications',

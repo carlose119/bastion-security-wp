@@ -23,6 +23,7 @@ final class SecurityDashboard
         private readonly FileEditorAdmin $fileEditorAdmin,
         private readonly SecurityHeadersAdmin $securityHeadersAdmin,
         private readonly LoginProtectionAdmin $loginProtectionAdmin,
+        private readonly XmlRpcPingbackAdmin $xmlRpcPingbackAdmin,
         private readonly PluginActivityAlertAdmin $pluginActivityAlertAdmin,
         ?callable $currentUserCan = null,
         ?callable $adminUrl = null,
@@ -59,6 +60,9 @@ final class SecurityDashboard
         $loginNotice = isset($_GET['bastion_login_notice']) && is_string($_GET['bastion_login_notice'])
             ? $_GET['bastion_login_notice']
             : '';
+        $xmlRpcPingbackNotice = isset($_GET['bastion_xmlrpc_pingback_notice']) && is_string($_GET['bastion_xmlrpc_pingback_notice'])
+            ? $_GET['bastion_xmlrpc_pingback_notice']
+            : '';
         $pluginAlertNotice = isset($_GET['bastion_plugin_alert_notice']) && is_string($_GET['bastion_plugin_alert_notice'])
             ? $_GET['bastion_plugin_alert_notice']
             : '';
@@ -71,6 +75,7 @@ final class SecurityDashboard
             echo '<p class="bastion-tab-introduction">' . \esc_html__('Manage reversible WordPress hardening controls.', 'bastion-security-wp') . '</p>';
             $this->fileEditorAdmin->renderToolSection($notice);
             $this->loginProtectionAdmin->renderToolSection($loginNotice);
+            $this->xmlRpcPingbackAdmin->renderToolSection($xmlRpcPingbackNotice);
             $this->pluginActivityAlertAdmin->renderToolSection($pluginAlertNotice);
         } elseif ($tab === 'headers') {
             echo '<p class="bastion-tab-introduction">' . \esc_html__('Review exact header policies, select bounded changes, and verify the final response at every serving edge.', 'bastion-security-wp') . '</p>';
@@ -169,6 +174,7 @@ final class SecurityDashboard
 .bastion-security-dashboard .bastion-diagnostic-action p { max-width: 72ch; }
 .bastion-security-dashboard .bastion-diagnostic-action { margin-top: 16px; }
 .bastion-security-dashboard .bastion-login-protection,
+.bastion-security-dashboard .bastion-xmlrpc-pingback-protection,
 .bastion-security-dashboard .bastion-plugin-activity-alerts { margin-top: 28px; padding-top: 8px; border-top: 2px solid #c3c4c7; }
 .bastion-security-dashboard .bastion-login-reset { max-width: 72ch; margin-top: 20px; padding: 14px 16px; border-left: 4px solid #dba617; background: #fff; }
 @media (max-width: 782px) {
