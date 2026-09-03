@@ -1,6 +1,7 @@
 <?php
 /**
  * Plugin Name:       Bastion Security WP
+ * Plugin URI:        https://github.com/carlose119/bastion-security-wp
  * Description:       Defense-in-depth security diagnostics and reversible hardening tools for WordPress.
  * Version:           0.1.0
  * Requires at least: 6.8
