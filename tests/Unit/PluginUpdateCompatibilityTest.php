@@ -29,6 +29,8 @@ final class PluginUpdateCompatibilityTest extends TestCase
 
         $singleResult = $single->report();
         self::assertSame('recommended', $singleResult['status']);
+        self::assertSame('Cerrojo: Plugin update compatibility', $singleResult['label']);
+        self::assertSame(['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'], $singleResult['badge']);
         self::assertStringContainsString('Not assessed', $singleResult['description']);
         self::assertSame(0, $reads);
 
@@ -235,7 +237,7 @@ final class PluginUpdateCompatibilityTest extends TestCase
     {
         $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
 
-        self::assertStringContainsString('twelve Bastion diagnostics', $readme);
+        self::assertStringContainsString('twelve Cerrojo diagnostics', $readme);
         self::assertStringContainsString('Declared requirements met', $readme);
         self::assertStringContainsString('Blocked by declared requirements', $readme);
         self::assertStringContainsString('Compatibility unknown', $readme);

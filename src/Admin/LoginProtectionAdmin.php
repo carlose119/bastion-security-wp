@@ -90,27 +90,27 @@ final class LoginProtectionAdmin
         $state = $this->policy->state();
         $metrics = $this->policy->metrics();
 
-        echo '<section id="bastion-login-protection" class="bastion-tools bastion-login-protection"><h2>' . \esc_html__('Login Protection', 'bastion-security') . '</h2>';
+        echo '<section id="bastion-login-protection" class="bastion-tools bastion-login-protection"><h2>' . \esc_html__('Login Protection', 'cerrojo-security-toolkit') . '</h2>';
         $this->renderNotice($notice);
-        echo '<p><strong>' . \esc_html__('Status:', 'bastion-security') . '</strong> ' . ($state['enabled'] ? \esc_html__('Enabled', 'bastion-security') : \esc_html__('Disabled', 'bastion-security')) . '</p>';
-        echo '<p>' . \esc_html__('This opt-in, per-site tool progressively delays repeated failed authentication within a 15-minute rolling window. The maximum cooldown is 15 minutes; there are no permanent locks.', 'bastion-security') . '</p>';
-        echo '<table class="widefat striped"><caption class="screen-reader-text">' . \esc_html__('Login Protection thresholds', 'bastion-security') . '</caption><thead><tr><th scope="col">' . \esc_html__('Bucket', 'bastion-security') . '</th><th scope="col">' . \esc_html__('Failure thresholds', 'bastion-security') . '</th><th scope="col">' . \esc_html__('Cooldowns', 'bastion-security') . '</th></tr></thead><tbody>';
-        echo '<tr><th scope="row">' . \esc_html__('Normalized username or email', 'bastion-security') . '</th><td><code>5 / 8 / 12</code></td><td><code>60 seconds / 5 minutes / 15 minutes</code></td></tr>';
-        echo '<tr><th scope="row">' . \esc_html__('Direct peer address', 'bastion-security') . '</th><td><code>50 / 100 / 200</code></td><td><code>60 seconds / 5 minutes / 15 minutes</code></td></tr></tbody></table>';
+        echo '<p><strong>' . \esc_html__('Status:', 'cerrojo-security-toolkit') . '</strong> ' . ($state['enabled'] ? \esc_html__('Enabled', 'cerrojo-security-toolkit') : \esc_html__('Disabled', 'cerrojo-security-toolkit')) . '</p>';
+        echo '<p>' . \esc_html__('This opt-in, per-site tool progressively delays repeated failed authentication within a 15-minute rolling window. The maximum cooldown is 15 minutes; there are no permanent locks.', 'cerrojo-security-toolkit') . '</p>';
+        echo '<table class="widefat striped"><caption class="screen-reader-text">' . \esc_html__('Login Protection thresholds', 'cerrojo-security-toolkit') . '</caption><thead><tr><th scope="col">' . \esc_html__('Bucket', 'cerrojo-security-toolkit') . '</th><th scope="col">' . \esc_html__('Failure thresholds', 'cerrojo-security-toolkit') . '</th><th scope="col">' . \esc_html__('Cooldowns', 'cerrojo-security-toolkit') . '</th></tr></thead><tbody>';
+        echo '<tr><th scope="row">' . \esc_html__('Normalized username or email', 'cerrojo-security-toolkit') . '</th><td><code>5 / 8 / 12</code></td><td><code>60 seconds / 5 minutes / 15 minutes</code></td></tr>';
+        echo '<tr><th scope="row">' . \esc_html__('Direct peer address', 'cerrojo-security-toolkit') . '</th><td><code>50 / 100 / 200</code></td><td><code>60 seconds / 5 minutes / 15 minutes</code></td></tr></tbody></table>';
 
-        echo '<h3>' . \esc_html__('Aggregate metrics', 'bastion-security') . '</h3><dl>';
+        echo '<h3>' . \esc_html__('Aggregate metrics', 'cerrojo-security-toolkit') . '</h3><dl>';
         $this->metric('Failed attempts', $metrics['failed_attempts'], $metrics['last_failed_at']);
         $this->metric('Throttled attempts', $metrics['throttled_attempts'], $metrics['last_throttled_at']);
-        echo '</dl><p>' . \esc_html__('Resetting temporary blocks preserves aggregate metrics.', 'bastion-security') . '</p>';
+        echo '</dl><p>' . \esc_html__('Resetting temporary blocks preserves aggregate metrics.', 'cerrojo-security-toolkit') . '</p>';
 
-        echo '<h3>' . \esc_html__('Coverage and limitations', 'bastion-security') . '</h3>';
+        echo '<h3>' . \esc_html__('Coverage and limitations', 'cerrojo-security-toolkit') . '</h3>';
         echo '<p>' . ($this->policy->peerAvailable()
-            ? \esc_html__('Direct-peer detection is available. The address itself is never displayed.', 'bastion-security')
-            : \esc_html__('Direct-peer detection is unavailable, so only the identity dimension can be applied.', 'bastion-security')) . '</p>';
-        echo '<div class="notice notice-warning inline"><p><strong>' . \esc_html__('Proxy and shared-address warning:', 'bastion-security') . '</strong> ' . \esc_html__('Only REMOTE_ADDR is used; forwarded headers are not trusted. A shared proxy address can cause temporary lockout for legitimate users.', 'bastion-security') . '</p></div>';
-        echo '<p>' . \esc_html__('Standard wp-login and flows through wp_authenticate(), including ordinary XML-RPC authentication, are covered. REST Application Password authentication is not covered.', 'bastion-security') . '</p>';
-        echo '<p>' . \esc_html__('Enforcement is best-effort: transient eviction and concurrent read-modify-write races can weaken throttling, and aggregate metrics can undercount. Final authentication enforcement still allows WordPress password hashing and user lookup, so this does not provide WAF or DDoS protection or a security guarantee.', 'bastion-security') . '</p>';
-        echo '<p>' . \esc_html__('Bucket keys use HMAC SHA-256 with the WordPress authentication secret. Raw usernames, email addresses, and IP addresses are not stored in these buckets or displayed.', 'bastion-security') . '</p>';
+            ? \esc_html__('Direct-peer detection is available. The address itself is never displayed.', 'cerrojo-security-toolkit')
+            : \esc_html__('Direct-peer detection is unavailable, so only the identity dimension can be applied.', 'cerrojo-security-toolkit')) . '</p>';
+        echo '<div class="notice notice-warning inline"><p><strong>' . \esc_html__('Proxy and shared-address warning:', 'cerrojo-security-toolkit') . '</strong> ' . \esc_html__('Only REMOTE_ADDR is used; forwarded headers are not trusted. A shared proxy address can cause temporary lockout for legitimate users.', 'cerrojo-security-toolkit') . '</p></div>';
+        echo '<p>' . \esc_html__('Standard wp-login and flows through wp_authenticate(), including ordinary XML-RPC authentication, are covered. REST Application Password authentication is not covered.', 'cerrojo-security-toolkit') . '</p>';
+        echo '<p>' . \esc_html__('Enforcement is best-effort: transient eviction and concurrent read-modify-write races can weaken throttling, and aggregate metrics can undercount. Final authentication enforcement still allows WordPress password hashing and user lookup, so this does not provide WAF or DDoS protection or a security guarantee.', 'cerrojo-security-toolkit') . '</p>';
+        echo '<p>' . \esc_html__('Bucket keys use HMAC SHA-256 with the WordPress authentication secret. Raw usernames, email addresses, and IP addresses are not stored in these buckets or displayed.', 'cerrojo-security-toolkit') . '</p>';
 
         if ($state['enabled']) {
             $this->renderForm('disable');
@@ -124,9 +124,9 @@ final class LoginProtectionAdmin
     private function renderEnableForm(): void
     {
         $this->openForm('enable');
-        echo '<fieldset><legend class="screen-reader-text">' . \esc_html__('Enable Login Protection', 'bastion-security') . '</legend>';
-        echo '<label><input type="checkbox" name="acknowledge" value="1"> ' . \esc_html__('I understand that legitimate users, especially behind shared proxies, can be temporarily locked out. I can disable Login Protection from this page to stop future enforcement.', 'bastion-security') . '</label>';
-        \submit_button(\esc_html__('Enable Login Protection', 'bastion-security'));
+        echo '<fieldset><legend class="screen-reader-text">' . \esc_html__('Enable Login Protection', 'cerrojo-security-toolkit') . '</legend>';
+        echo '<label><input type="checkbox" name="acknowledge" value="1"> ' . \esc_html__('I understand that legitimate users, especially behind shared proxies, can be temporarily locked out. I can disable Login Protection from this page to stop future enforcement.', 'cerrojo-security-toolkit') . '</label>';
+        \submit_button(\esc_html__('Enable Login Protection', 'cerrojo-security-toolkit'));
         echo '</fieldset></form>';
     }
 
@@ -134,8 +134,8 @@ final class LoginProtectionAdmin
     {
         $this->openForm($command);
         $label = $command === 'disable'
-            ? \esc_html__('Disable Login Protection', 'bastion-security')
-            : \esc_html__('Enable Login Protection', 'bastion-security');
+            ? \esc_html__('Disable Login Protection', 'cerrojo-security-toolkit')
+            : \esc_html__('Enable Login Protection', 'cerrojo-security-toolkit');
         \submit_button($label);
         echo '</form>';
     }
@@ -144,9 +144,9 @@ final class LoginProtectionAdmin
     {
         echo '<div class="bastion-login-reset">';
         $this->openForm('reset');
-        echo '<fieldset><legend><strong>' . \esc_html__('Reset temporary blocks', 'bastion-security') . '</strong></legend>';
-        echo '<p>' . \esc_html__('Invalidate all current Login Protection buckets while preserving the enabled state and aggregate metrics.', 'bastion-security') . '</p>';
-        \submit_button(\esc_html__('Reset temporary blocks', 'bastion-security'), 'secondary');
+        echo '<fieldset><legend><strong>' . \esc_html__('Reset temporary blocks', 'cerrojo-security-toolkit') . '</strong></legend>';
+        echo '<p>' . \esc_html__('Invalidate all current Login Protection buckets while preserving the enabled state and aggregate metrics.', 'cerrojo-security-toolkit') . '</p>';
+        \submit_button(\esc_html__('Reset temporary blocks', 'cerrojo-security-toolkit'), 'secondary');
         echo '</fieldset></form></div>';
     }
 
@@ -162,25 +162,25 @@ final class LoginProtectionAdmin
     private function metric(string $label, int $count, int $lastAt): void
     {
         $translatedLabel = $label === 'Failed attempts'
-            ? \__('Failed attempts', 'bastion-security')
-            : \__('Throttled attempts', 'bastion-security');
-        $last = $lastAt > 0 ? ($this->formatTimestamp)($lastAt) : \__('Never', 'bastion-security');
-        echo '<div><dt>' . \esc_html($translatedLabel) . '</dt><dd><strong>' . \esc_html((string) $count) . '</strong>; ' . \esc_html__('last:', 'bastion-security') . ' ' . \esc_html($last) . '</dd></div>';
+            ? \__('Failed attempts', 'cerrojo-security-toolkit')
+            : \__('Throttled attempts', 'cerrojo-security-toolkit');
+        $last = $lastAt > 0 ? ($this->formatTimestamp)($lastAt) : \__('Never', 'cerrojo-security-toolkit');
+        echo '<div><dt>' . \esc_html($translatedLabel) . '</dt><dd><strong>' . \esc_html((string) $count) . '</strong>; ' . \esc_html__('last:', 'cerrojo-security-toolkit') . ' ' . \esc_html($last) . '</dd></div>';
     }
 
     private function renderNotice(string $notice): void
     {
         $message = match ($notice) {
-            'enabled' => \__('Login Protection was enabled.', 'bastion-security'),
-            'disabled' => \__('Login Protection was disabled and prior temporary blocks were invalidated.', 'bastion-security'),
-            'reset' => \__('Temporary Login Protection blocks were reset. Aggregate metrics were preserved.', 'bastion-security'),
-            'unchanged' => \__('Login Protection was already in the requested state.', 'bastion-security'),
-            'acknowledgement_required' => \__('Acknowledge the temporary legitimate-user and shared-proxy lockout risk before enabling Login Protection.', 'bastion-security'),
-            'invalid_request' => \__('The request must use POST. No change was made.', 'bastion-security'),
-            'invalid_nonce' => \__('The request could not be verified. No change was made.', 'bastion-security'),
-            'invalid_command' => \__('The requested Login Protection target or command is not supported. No change was made.', 'bastion-security'),
-            'forbidden' => \__('You are not allowed to perform this action. No change was made.', 'bastion-security'),
-            'write_failed' => \__('WordPress could not save the Login Protection configuration. The prior state may remain.', 'bastion-security'),
+            'enabled' => \__('Login Protection was enabled.', 'cerrojo-security-toolkit'),
+            'disabled' => \__('Login Protection was disabled and prior temporary blocks were invalidated.', 'cerrojo-security-toolkit'),
+            'reset' => \__('Temporary Login Protection blocks were reset. Aggregate metrics were preserved.', 'cerrojo-security-toolkit'),
+            'unchanged' => \__('Login Protection was already in the requested state.', 'cerrojo-security-toolkit'),
+            'acknowledgement_required' => \__('Acknowledge the temporary legitimate-user and shared-proxy lockout risk before enabling Login Protection.', 'cerrojo-security-toolkit'),
+            'invalid_request' => \__('The request must use POST. No change was made.', 'cerrojo-security-toolkit'),
+            'invalid_nonce' => \__('The request could not be verified. No change was made.', 'cerrojo-security-toolkit'),
+            'invalid_command' => \__('The requested Login Protection target or command is not supported. No change was made.', 'cerrojo-security-toolkit'),
+            'forbidden' => \__('You are not allowed to perform this action. No change was made.', 'cerrojo-security-toolkit'),
+            'write_failed' => \__('WordPress could not save the Login Protection configuration. The prior state may remain.', 'cerrojo-security-toolkit'),
             default => null,
         };
         if ($message === null) {

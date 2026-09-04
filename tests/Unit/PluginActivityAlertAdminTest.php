@@ -162,7 +162,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 'Plugin installations', 'successful plugin activation', 'two separate notifications',
                 'Plugin updates are excluded', 'per-site', 'network-wide', 'current site context',
                 'no historical events', 'no queue', 'retry', 'delivery receipt', 'audit log',
-                'exactly-once', 'wp_mail', 'metadata may be unavailable', 'Bastion must be active',
+                'exactly-once', 'wp_mail', 'metadata may be unavailable', 'Cerrojo must be active',
                 'Disabling preserves',
             ] as $expected) {
                 self::assertStringContainsString($expected, $readme, $expected);

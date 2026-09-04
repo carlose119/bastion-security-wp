@@ -112,7 +112,7 @@ namespace BastionSecurityWP\Tests\Unit {
         {
             $overview = $this->renderTab('overview');
             self::assertSame(4, substr_count($overview, '<a class="nav-tab'));
-            self::assertStringContainsString('class="nav-tab-wrapper" aria-label="Bastion Security sections"', $overview);
+            self::assertStringContainsString('class="nav-tab-wrapper" aria-label="Cerrojo Security Toolkit sections"', $overview);
             self::assertStringContainsString('tab=overview', $overview);
             self::assertStringContainsString('tab=hardening', $overview);
             self::assertStringContainsString('tab=headers', $overview);
@@ -299,7 +299,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $html = (string) ob_get_clean();
 
             self::assertStringContainsString('name="command" value="disable"', $html);
-            self::assertStringContainsString('Disable Bastion lock', $html);
+            self::assertStringContainsString('Disable Cerrojo lock', $html);
         }
 
         public function testExternalOwnershipAndMultisiteRemainConservative(): void
@@ -309,14 +309,14 @@ namespace BastionSecurityWP\Tests\Unit {
             $this->dashboard(externalDefined: true)->render();
             $externalHtml = (string) ob_get_clean();
 
-            self::assertStringContainsString('defined outside Bastion', $externalHtml);
-            self::assertStringNotContainsString('Clear Bastion preference', $externalHtml);
+            self::assertStringContainsString('defined outside Cerrojo', $externalHtml);
+            self::assertStringNotContainsString('Clear Cerrojo preference', $externalHtml);
 
             ob_start();
             $this->dashboard(optionEnabled: true, externalDefined: true)->render();
             $stalePreferenceHtml = (string) ob_get_clean();
 
-            self::assertStringContainsString('Clear Bastion preference', $stalePreferenceHtml);
+            self::assertStringContainsString('Clear Cerrojo preference', $stalePreferenceHtml);
             self::assertStringContainsString('name="command" value="disable"', $stalePreferenceHtml);
 
             ob_start();
@@ -324,7 +324,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $multisiteHtml = (string) ob_get_clean();
 
             self::assertStringContainsString('unavailable on multisite', $multisiteHtml);
-            self::assertStringNotContainsString('Enable Bastion lock', $multisiteHtml);
+            self::assertStringNotContainsString('Enable Cerrojo lock', $multisiteHtml);
         }
 
         public function testDashboardRequiresManageOptionsCapability(): void

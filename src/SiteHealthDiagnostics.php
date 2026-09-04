@@ -66,51 +66,51 @@ final class SiteHealthDiagnostics
     {
         return [
             'bastion_security_wp_transport' => [
-                'label' => 'Bastion: HTTPS and admin transport posture',
+                'label' => 'Cerrojo: HTTPS and admin transport posture',
                 'test' => $this->transport(...),
             ],
             'bastion_security_wp_file_editor' => [
-                'label' => 'Bastion: File editor posture',
+                'label' => 'Cerrojo: File editor posture',
                 'test' => $this->fileEditor(...),
             ],
             'bastion_security_wp_login_protection' => [
-                'label' => 'Bastion: Login Protection',
+                'label' => 'Cerrojo: Login Protection',
                 'test' => $this->loginProtection(...),
             ],
             'bastion_security_wp_xmlrpc_pingback_protection' => [
-                'label' => 'Bastion: XML-RPC Pingback Protection',
+                'label' => 'Cerrojo: XML-RPC Pingback Protection',
                 'test' => $this->xmlRpcPingbackProtection(...),
             ],
             'bastion_security_wp_rest_route_controls' => [
-                'label' => 'Bastion: REST Route Controls',
+                'label' => 'Cerrojo: REST Route Controls',
                 'test' => $this->restRouteControls(...),
             ],
             'bastion_security_wp_plugin_activity_alerts' => [
-                'label' => 'Bastion: Plugin activity email alerts',
+                'label' => 'Cerrojo: Plugin activity email alerts',
                 'test' => $this->pluginActivityAlerts(...),
             ],
             'bastion_security_wp_administrator_account_alerts' => [
-                'label' => 'Bastion: Administrator account alerts',
+                'label' => 'Cerrojo: Administrator account alerts',
                 'test' => $this->administratorAccountAlerts(...),
             ],
             'bastion_security_wp_security_headers' => [
-                'label' => 'Bastion: Security header preset',
+                'label' => 'Cerrojo: Security header preset',
                 'test' => $this->securityHeaders(...),
             ],
             'bastion_security_wp_file_modifications' => [
-                'label' => 'Bastion: File modification posture',
+                'label' => 'Cerrojo: File modification posture',
                 'test' => $this->fileModifications(...),
             ],
             'bastion_security_wp_runtime' => [
-                'label' => 'Bastion: Runtime compatibility notice',
+                'label' => 'Cerrojo: Runtime compatibility notice',
                 'test' => $this->runtime(...),
             ],
             'bastion_security_wp_plugin_update_compatibility' => [
-                'label' => 'Bastion: Plugin update compatibility',
+                'label' => 'Cerrojo: Plugin update compatibility',
                 'test' => $this->pluginUpdateCompatibility->report(...),
             ],
             'bastion_security_wp_rest_surface_inventory' => [
-                'label' => 'Bastion: REST surface inventory',
+                'label' => 'Cerrojo: REST surface inventory',
                 'test' => $this->restInventory->report(...),
             ],
         ];
@@ -125,13 +125,13 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $ssl && $admin ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: HTTPS and admin transport posture',
+                'Cerrojo: HTTPS and admin transport posture',
                 sprintf('Evidence: The current request is %s; FORCE_SSL_ADMIN is %s.', $ssl ? 'HTTPS' : 'not HTTPS', $admin ? 'enabled' : 'not enabled'),
                 'Meaning: Encrypted administration transport reduces exposure of authenticated sessions in transit.',
                 'Remediation: The site owner should validate HTTPS end to end, then enable FORCE_SSL_ADMIN in WordPress configuration.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: HTTPS and admin transport posture');
+            return $this->notAssessed('Cerrojo: HTTPS and admin transport posture');
         }
     }
 
@@ -144,35 +144,35 @@ final class SiteHealthDiagnostics
                 $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.');
                 $remediation = $disabled
                     ? 'Remediation: No change is suggested for the file-editor lock.'
-                    : 'Remediation: Open Tools > Bastion Security to enable the plugin-managed lock, or define DISALLOW_FILE_EDIT externally.';
+                    : 'Remediation: Open Tools > Cerrojo Security Toolkit to enable the plugin-managed lock, or define DISALLOW_FILE_EDIT externally.';
             } else {
                 $state = $this->fileEditorPolicy->state();
                 $disabled = $state['effective_disabled'];
 
                 if (! $state['available']) {
-                    $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.') . ' Bastion management is unavailable on multisite.';
-                    $remediation = 'Remediation: A network administrator should manage the file-editor policy outside this Bastion tool.';
+                    $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.') . ' Cerrojo management is unavailable on multisite.';
+                    $remediation = 'Remediation: A network administrator should manage the file-editor policy outside this Cerrojo tool.';
                 } elseif ($state['external_defined']) {
-                    $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.') . ' DISALLOW_FILE_EDIT is defined outside Bastion.';
-                    $remediation = 'Remediation: Review the external WordPress configuration. Bastion will not override or remove that value.';
+                    $evidence = 'Evidence: The built-in plugin and theme editor is ' . ($disabled ? 'disabled.' : 'available.') . ' DISALLOW_FILE_EDIT is defined outside Cerrojo.';
+                    $remediation = 'Remediation: Review the external WordPress configuration. Cerrojo will not override or remove that value.';
                 } elseif ($state['plugin_managed']) {
-                    $evidence = 'Evidence: The built-in plugin and theme editor is disabled by the Bastion-managed lock.';
-                    $remediation = 'Remediation: Open Tools > Bastion Security to review or disable the Bastion preference.';
+                    $evidence = 'Evidence: The built-in plugin and theme editor is disabled by the Cerrojo-managed lock.';
+                    $remediation = 'Remediation: Open Tools > Cerrojo Security Toolkit to review or disable the Cerrojo preference.';
                 } else {
-                    $evidence = 'Evidence: The built-in plugin and theme editor is available and Bastion does not manage the lock.';
-                    $remediation = 'Remediation: Open Tools > Bastion Security to enable the plugin-managed lock.';
+                    $evidence = 'Evidence: The built-in plugin and theme editor is available and Cerrojo does not manage the lock.';
+                    $remediation = 'Remediation: Open Tools > Cerrojo Security Toolkit to enable the plugin-managed lock.';
                 }
             }
 
             return $this->result(
                 $disabled ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: File editor posture',
+                'Cerrojo: File editor posture',
                 $evidence,
                 'Meaning: Disabling dashboard code editing reduces accidental or compromised-admin source changes.',
                 $remediation,
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: File editor posture');
+            return $this->notAssessed('Cerrojo: File editor posture');
         }
     }
 
@@ -184,13 +184,13 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $enabled ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: Login Protection',
+                'Cerrojo: Login Protection',
                 'Evidence: The per-site Login Protection setting is ' . ($enabled ? 'enabled.' : 'disabled.'),
                 'Meaning: A Good result means only that the setting is enabled; it does not guarantee authentication availability or attack prevention. Standard wp-login and flows through wp_authenticate(), including ordinary XML-RPC, are covered. REST Application Passwords are not covered. Only REMOTE_ADDR identifies the direct peer; forwarded headers are not trusted, so shared proxy users can share a bucket. Transient eviction and read-modify-write races can weaken enforcement. This is not WAF or DDoS protection.',
-                'Remediation: Review Tools > Bastion Security > Hardening, assess shared-address lockout risk, and retain an independent recovery path.',
+                'Remediation: Review Tools > Cerrojo Security Toolkit > Hardening, assess shared-address lockout risk, and retain an independent recovery path.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: Login Protection');
+            return $this->notAssessed('Cerrojo: Login Protection');
         }
     }
 
@@ -202,24 +202,24 @@ final class SiteHealthDiagnostics
             if (! $state['assessed']) {
                 return $this->result(
                     DiagnosticStatus::Recommended,
-                    'Bastion: XML-RPC Pingback Protection',
+                    'Cerrojo: XML-RPC Pingback Protection',
                     'Evidence: The per-site XML-RPC Pingback Protection setting could not be read.',
-                    'Meaning: Not assessed. Bastion made no claim about pingback method or header filtering.',
-                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Bastion Security > Hardening.',
+                    'Meaning: Not assessed. Cerrojo made no claim about pingback method or header filtering.',
+                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Cerrojo Security Toolkit > Hardening.',
                 );
             }
 
             return $this->result(
                 $state['enabled'] ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: XML-RPC Pingback Protection',
+                'Cerrojo: XML-RPC Pingback Protection',
                 'Evidence: The readable per-site XML-RPC Pingback Protection setting is ' . ($state['enabled'] ? 'enabled.' : 'disabled.'),
-                'Meaning: A Good result means only that Bastion is configured to remove pingback.ping, pingback.extensions.getPingbacks, and WordPress-filtered X-Pingback headers. It is not absolute enforcement: later same-priority filters and direct server, proxy, or CDN headers are outside this result. Other authenticated XML-RPC methods remain available.',
+                'Meaning: A Good result means only that Cerrojo is configured to remove pingback.ping, pingback.extensions.getPingbacks, and WordPress-filtered X-Pingback headers. It is not absolute enforcement: later same-priority filters and direct server, proxy, or CDN headers are outside this result. Other authenticated XML-RPC methods remain available.',
                 $state['enabled']
-                    ? 'Remediation: Verify application compatibility and final headers independently; disable the setting under Tools > Bastion Security > Hardening if native pingback behavior is required.'
-                    : 'Remediation: Review native pingback compatibility, then enable the per-site setting under Tools > Bastion Security > Hardening if the removals are appropriate.',
+                    ? 'Remediation: Verify application compatibility and final headers independently; disable the setting under Tools > Cerrojo Security Toolkit > Hardening if native pingback behavior is required.'
+                    : 'Remediation: Review native pingback compatibility, then enable the per-site setting under Tools > Cerrojo Security Toolkit > Hardening if the removals are appropriate.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: XML-RPC Pingback Protection');
+            return $this->notAssessed('Cerrojo: XML-RPC Pingback Protection');
         }
     }
 
@@ -232,10 +232,10 @@ final class SiteHealthDiagnostics
             if (! $state['assessed']) {
                 return $this->result(
                     DiagnosticStatus::Recommended,
-                    'Bastion: REST Route Controls',
+                    'Cerrojo: REST Route Controls',
                     'Evidence: The per-site REST Route Controls configuration could not be read.',
-                    'Meaning: Not assessed. Bastion makes no claim about REST route-template blocking.',
-                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Bastion Security > REST API.',
+                    'Meaning: Not assessed. Cerrojo makes no claim about REST route-template blocking.',
+                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Cerrojo Security Toolkit > REST API.',
                 );
             }
 
@@ -243,13 +243,13 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $count > 0 ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: REST Route Controls',
+                'Cerrojo: REST Route Controls',
                 sprintf('Evidence: The readable per-site configuration has %d selected REST route template %s.', $count, $count === 1 ? 'rule' : 'rules'),
                 'Meaning: A Good result means only that 1–100 rules are readable. This diagnostic does not load the active catalog, reveal patterns, prove final enforcement, hide routes, or disable all REST.',
-                'Remediation: Review compatibility and selected methods under Tools > Bastion Security > REST API, then verify required API clients independently.',
+                'Remediation: Review compatibility and selected methods under Tools > Cerrojo Security Toolkit > REST API, then verify required API clients independently.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: REST Route Controls');
+            return $this->notAssessed('Cerrojo: REST Route Controls');
         }
     }
 
@@ -262,18 +262,18 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $state['enabled'] ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: Plugin activity email alerts',
+                'Cerrojo: Plugin activity email alerts',
                 sprintf(
                     'Evidence: The per-site plugin activity email alert setting is %s with %d configured %s.',
                     $state['enabled'] ? 'enabled' : 'disabled',
                     $recipientCount,
                     $recipientCount === 1 ? 'recipient' : 'recipients',
                 ),
-                'Meaning: An enabled result means Bastion will attempt sends for observed plugin installations and successful activations; it does not prove delivery.',
-                'Remediation: Review recipients and event limitations under Tools > Bastion Security > Hardening, and verify the site wp_mail transport independently.',
+                'Meaning: An enabled result means Cerrojo will attempt sends for observed plugin installations and successful activations; it does not prove delivery.',
+                'Remediation: Review recipients and event limitations under Tools > Cerrojo Security Toolkit > Hardening, and verify the site wp_mail transport independently.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: Plugin activity email alerts');
+            return $this->notAssessed('Cerrojo: Plugin activity email alerts');
         }
     }
 
@@ -286,10 +286,10 @@ final class SiteHealthDiagnostics
             if (! $state['assessed']) {
                 return $this->result(
                     DiagnosticStatus::Recommended,
-                    'Bastion: Administrator account alerts',
+                    'Cerrojo: Administrator account alerts',
                     'Evidence: The per-site Administrator Account Alerts configuration could not be read.',
-                    'Meaning: Not assessed. Bastion makes no claim about alert configuration, email delivery, or complete administrator-event capture.',
-                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Bastion Security > Hardening.',
+                    'Meaning: Not assessed. Cerrojo makes no claim about alert configuration, email delivery, or complete administrator-event capture.',
+                    'Remediation: Retry Site Health, investigate the local option read, then review Tools > Cerrojo Security Toolkit > Hardening.',
                 );
             }
 
@@ -297,7 +297,7 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $state['enabled'] && $recipientCount > 0 ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: Administrator account alerts',
+                'Cerrojo: Administrator account alerts',
                 sprintf(
                     'Evidence: The readable per-site Administrator Account Alerts setting is %s with %d configured %s.',
                     $state['enabled'] ? 'enabled' : 'disabled',
@@ -305,10 +305,10 @@ final class SiteHealthDiagnostics
                     $recipientCount === 1 ? 'recipient' : 'recipients',
                 ),
                 'Meaning: A Good result means only that the configuration is readable, enabled, and has recipients. It does not prove wp_mail delivery or complete event capture.',
-                'Remediation: Review recipients, privacy, actor context, and event limitations under Tools > Bastion Security > Hardening, then verify mail transport independently.',
+                'Remediation: Review recipients, privacy, actor context, and event limitations under Tools > Cerrojo Security Toolkit > Hardening, then verify mail transport independently.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: Administrator account alerts');
+            return $this->notAssessed('Cerrojo: Administrator account alerts');
         }
     }
 
@@ -324,19 +324,19 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $configured ? DiagnosticStatus::Good : DiagnosticStatus::Recommended,
-                'Bastion: Security header preset',
+                'Cerrojo: Security header preset',
                 sprintf(
-                    'Evidence: The per-site Bastion security-header baseline preference is %s; %d active optional %s (%s).',
+                    'Evidence: The per-site Cerrojo security-header baseline preference is %s; %d active optional %s (%s).',
                     $baselineEnabled ? 'enabled' : 'disabled',
                     $groupCount,
                     $groupCount === 1 ? 'group' : 'groups',
                     $groupSummary,
                 ),
-                'Meaning: A Good result only means at least one Bastion preference is configured; configuration is not end-to-end delivery proof.',
-                'Remediation: Open Tools > Bastion Security to review the policies, then inspect final response headers at the browser or CDN edge.',
+                'Meaning: A Good result only means at least one Cerrojo preference is configured; configuration is not end-to-end delivery proof.',
+                'Remediation: Open Tools > Cerrojo Security Toolkit to review the policies, then inspect final response headers at the browser or CDN edge.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: Security header preset');
+            return $this->notAssessed('Cerrojo: Security header preset');
         }
     }
 
@@ -348,13 +348,13 @@ final class SiteHealthDiagnostics
 
             return $this->result(
                 $blocked ? DiagnosticStatus::Recommended : DiagnosticStatus::Good,
-                'Bastion: File modification posture',
+                'Cerrojo: File modification posture',
                 'Evidence: WordPress file installation and updates are ' . ($blocked ? 'blocked.' : 'permitted.'),
                 'Meaning: DISALLOW_FILE_MODS is distinct from editor hardening and can prevent security updates.',
                 'Remediation: The site owner should keep updates available or document and verify an external patching process.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: File modification posture');
+            return $this->notAssessed('Cerrojo: File modification posture');
         }
     }
 
@@ -376,22 +376,22 @@ final class SiteHealthDiagnostics
             if (! $target) {
                 return $this->result(
                     DiagnosticStatus::Recommended,
-                    'Bastion: Runtime compatibility notice',
+                    'Cerrojo: Runtime compatibility notice',
                     $evidence,
-                    'Meaning: Not assessed. This runtime is outside Bastion validation targets; that alone is not an insecurity finding.',
+                    'Meaning: Not assessed. This runtime is outside Cerrojo validation targets; that alone is not an insecurity finding.',
                     'Remediation: The site owner should consult official WordPress and PHP compatibility and support guidance.',
                 );
             }
 
             return $this->result(
                 DiagnosticStatus::Good,
-                'Bastion: Runtime compatibility notice',
+                'Cerrojo: Runtime compatibility notice',
                 $evidence,
-                'Meaning: This runtime is within Bastion validation targets; this is not a security guarantee.',
+                'Meaning: This runtime is within Cerrojo validation targets; this is not a security guarantee.',
                 'Remediation: The site owner should continue applying supported WordPress and PHP updates.',
             );
         } catch (Throwable) {
-            return $this->notAssessed('Bastion: Runtime compatibility notice');
+            return $this->notAssessed('Cerrojo: Runtime compatibility notice');
         }
     }
 
@@ -432,19 +432,19 @@ final class SiteHealthDiagnostics
         return [
             'label' => $label,
             'status' => $status->value,
-            'badge' => ['label' => 'Bastion Security', 'color' => 'blue'],
+            'badge' => ['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'],
             'description' => '<p>' . $evidence . '</p><p>' . $meaning . '</p><p>Ownership: Site owner or hosting administrator.</p>',
             'actions' => '<p>' . $remediation . '</p>',
             'test' => 'bastion_security_wp_' . match ($label) {
-                'Bastion: HTTPS and admin transport posture' => 'transport',
-                'Bastion: File editor posture' => 'file_editor',
-                'Bastion: Login Protection' => 'login_protection',
-                'Bastion: XML-RPC Pingback Protection' => 'xmlrpc_pingback_protection',
-                'Bastion: REST Route Controls' => 'rest_route_controls',
-                'Bastion: Plugin activity email alerts' => 'plugin_activity_alerts',
-                'Bastion: Administrator account alerts' => 'administrator_account_alerts',
-                'Bastion: Security header preset' => 'security_headers',
-                'Bastion: File modification posture' => 'file_modifications',
+                'Cerrojo: HTTPS and admin transport posture' => 'transport',
+                'Cerrojo: File editor posture' => 'file_editor',
+                'Cerrojo: Login Protection' => 'login_protection',
+                'Cerrojo: XML-RPC Pingback Protection' => 'xmlrpc_pingback_protection',
+                'Cerrojo: REST Route Controls' => 'rest_route_controls',
+                'Cerrojo: Plugin activity email alerts' => 'plugin_activity_alerts',
+                'Cerrojo: Administrator account alerts' => 'administrator_account_alerts',
+                'Cerrojo: Security header preset' => 'security_headers',
+                'Cerrojo: File modification posture' => 'file_modifications',
                 default => 'runtime',
             },
         ];

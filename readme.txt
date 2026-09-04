@@ -1,9 +1,9 @@
-=== Bastion Security ===
+=== Cerrojo Security Toolkit ===
 Contributors: carlose119
 Tags: security, hardening, login security, security headers, rest api
 Requires at least: 6.8
 Tested up to: 7.1
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,7 +12,7 @@ Review security diagnostics and apply reversible WordPress hardening controls wi
 
 == Description ==
 
-Bastion Security adds focused security diagnostics and reversible, opt-in controls under Tools > Bastion Security.
+Cerrojo Security Toolkit adds focused security diagnostics and reversible, opt-in controls under Tools > Cerrojo Security Toolkit.
 
 Current tools include:
 
@@ -27,21 +27,21 @@ Current tools include:
 
 Controls are designed to be reviewed, enabled, verified, and reversed individually. Coverage depends on the WordPress hooks and serving paths described in each tool. Login throttling is best-effort, email delivery depends on the site's mail transport, and headers must be verified at every cache, proxy, CDN, and origin edge.
 
-Bastion Security is not a web application firewall or malware scanner. It does not certify a site or guarantee complete protection. Use it as one layer in a broader security and recovery plan.
+Cerrojo Security Toolkit is not a web application firewall or malware scanner. It does not certify a site or guarantee complete protection. Use it as one layer in a broader security and recovery plan.
 
 Saved settings remain until you change them. Deactivation stops the plugin's runtime behavior but preserves its settings, metrics, and temporary state. The plugin currently provides no uninstall cleanup routine.
 
 == Installation ==
 
-1. Upload the plugin files to `/wp-content/plugins/bastion-security/`, or install the plugin through the WordPress Plugins screen.
-2. Activate Bastion Security through the Plugins screen.
-3. Open Tools > Bastion Security.
+1. Upload the plugin files to `/wp-content/plugins/cerrojo-security-toolkit/`, or install the plugin through the WordPress Plugins screen.
+2. Activate Cerrojo Security Toolkit through the Plugins screen.
+3. Open Tools > Cerrojo Security Toolkit.
 4. Review the diagnostics before enabling controls.
 5. Enable one control at a time, verify site behavior and integrations, and keep an independent recovery path available.
 
 == Frequently Asked Questions ==
 
-= Does Bastion Security guarantee that my site is secure? =
+= Does Cerrojo Security Toolkit guarantee that my site is secure? =
 
 No. It provides diagnostics and bounded hardening controls. It is not a WAF, malware scanner, certification, or complete protection guarantee.
 
@@ -58,6 +58,10 @@ Every caller whose request matches the selected HTTP method and registered route
 No. This version has no uninstall cleanup routine, so plugin-owned settings remain unless they are changed or removed separately.
 
 == Changelog ==
+
+= 0.2.1 =
+
+* Corrected the public name, text domain, and package slug to avoid an existing WordPress update identity collision.
 
 = 0.2.0 =
 

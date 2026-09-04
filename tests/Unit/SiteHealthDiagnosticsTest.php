@@ -114,7 +114,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
         ], array_column($results, 'test'));
         self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
-        self::assertSame(['label' => 'Bastion Security', 'color' => 'blue'], $results[0]['badge']);
+        self::assertSame(['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);
         self::assertStringContainsString('Remediation:', $results[0]['actions']);
     }
@@ -150,7 +150,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
 
         self::assertSame('recommended', $result['status']);
         self::assertStringContainsString('editor is available', $result['description']);
-        self::assertStringContainsString('defined outside Bastion', $result['description']);
+        self::assertStringContainsString('defined outside Cerrojo', $result['description']);
         self::assertStringContainsString('will not override or remove', $result['actions']);
     }
 
@@ -266,7 +266,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringContainsString('enabled with 2 configured recipients', $result['description']);
         self::assertStringContainsString('attempt sends', $result['description']);
         self::assertStringContainsString('does not prove delivery', $result['description']);
-        self::assertStringContainsString('Tools > Bastion Security > Hardening', $result['actions']);
+        self::assertStringContainsString('Tools > Cerrojo Security Toolkit > Hardening', $result['actions']);
     }
 
     public function testAdministratorAccountAlertDiagnosticRequiresReadableEnabledConfigurationWithRecipients(): void
@@ -309,7 +309,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
     {
         $disabled = $this->diagnostics()->securityHeaders();
         self::assertSame('recommended', $disabled['status']);
-        self::assertSame('Bastion: Security header preset', $disabled['label']);
+        self::assertSame('Cerrojo: Security header preset', $disabled['label']);
         self::assertStringContainsString('baseline preference is disabled', $disabled['description']);
         self::assertStringContainsString('0 active optional groups (none)', $disabled['description']);
 

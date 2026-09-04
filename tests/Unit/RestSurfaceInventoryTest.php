@@ -69,6 +69,8 @@ final class RestSurfaceInventoryTest extends TestCase
         $serialized = serialize($result);
 
         self::assertSame('good', $result['status']);
+        self::assertSame('Cerrojo: REST surface inventory', $result['label']);
+        self::assertSame(['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'], $result['badge']);
         self::assertStringContainsString('&lt;script&gt;alpha&lt;/script&gt;', $result['description']);
         self::assertStringContainsString('/&lt;img src=x onerror=secret-route&gt;', $result['description']);
         self::assertStringContainsString('Methods: <code>GET, POST</code>', $result['description']);

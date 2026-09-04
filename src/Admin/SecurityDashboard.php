@@ -39,8 +39,8 @@ final class SecurityDashboard
     public function registerPage(): void
     {
         \add_management_page(
-            'Bastion Security',
-            'Bastion Security',
+            'Cerrojo Security Toolkit',
+            'Cerrojo Security Toolkit',
             self::CAPABILITY,
             FileEditorAdmin::PAGE_SLUG,
             $this->render(...),
@@ -50,7 +50,7 @@ final class SecurityDashboard
     public function render(): void
     {
         if (! ($this->currentUserCan)(self::CAPABILITY)) {
-            \wp_die(\esc_html__('You are not allowed to manage Bastion Security.', 'bastion-security'));
+            \wp_die(\esc_html__('You are not allowed to manage Cerrojo Security Toolkit.', 'cerrojo-security-toolkit'));
 
             return;
         }
@@ -63,22 +63,22 @@ final class SecurityDashboard
         $pluginAlertNotice = $this->queryToken('bastion_plugin_alert_notice');
         $administratorAlertNotice = $this->queryToken('bastion_administrator_alert_notice');
 
-        echo '<div class="wrap bastion-security-dashboard"><h1>' . \esc_html__('Bastion Security', 'bastion-security') . '</h1>';
+        echo '<div class="wrap bastion-security-dashboard"><h1>' . \esc_html__('Cerrojo Security Toolkit', 'cerrojo-security-toolkit') . '</h1>';
         $this->renderTabs($tab);
         $this->renderStyles();
 
         if ($tab === 'hardening') {
-            echo '<p class="bastion-tab-introduction">' . \esc_html__('Manage reversible WordPress hardening controls.', 'bastion-security') . '</p>';
+            echo '<p class="bastion-tab-introduction">' . \esc_html__('Manage reversible WordPress hardening controls.', 'cerrojo-security-toolkit') . '</p>';
             $this->fileEditorAdmin->renderToolSection($notice);
             $this->loginProtectionAdmin->renderToolSection($loginNotice);
             $this->xmlRpcPingbackAdmin->renderToolSection($xmlRpcPingbackNotice);
             $this->pluginActivityAlertAdmin->renderToolSection($pluginAlertNotice);
             $this->administratorAccountAlertAdmin->renderToolSection($administratorAlertNotice);
         } elseif ($tab === 'headers') {
-            echo '<p class="bastion-tab-introduction">' . \esc_html__('Review exact header policies, select bounded changes, and verify the final response at every serving edge.', 'bastion-security') . '</p>';
+            echo '<p class="bastion-tab-introduction">' . \esc_html__('Review exact header policies, select bounded changes, and verify the final response at every serving edge.', 'cerrojo-security-toolkit') . '</p>';
             $this->securityHeadersAdmin->renderToolSection($notice);
         } elseif ($tab === 'rest-api') {
-            echo '<p class="bastion-tab-introduction">' . \esc_html__('Review the active REST route-template catalog and choose method-level blocks.', 'bastion-security') . '</p>';
+            echo '<p class="bastion-tab-introduction">' . \esc_html__('Review the active REST route-template catalog and choose method-level blocks.', 'cerrojo-security-toolkit') . '</p>';
             $this->restRouteControlsAdmin->renderCatalog($restRouteControlsNotice);
         } else {
             $this->renderOverview();
@@ -102,7 +102,7 @@ final class SecurityDashboard
 
     private function renderTabs(string $activeTab): void
     {
-        echo '<nav class="nav-tab-wrapper" aria-label="' . \esc_attr(\esc_html__('Bastion Security sections', 'bastion-security')) . '">';
+        echo '<nav class="nav-tab-wrapper" aria-label="' . \esc_attr(\esc_html__('Cerrojo Security Toolkit sections', 'cerrojo-security-toolkit')) . '">';
         foreach (self::TABS as $tab) {
             $url = ($this->adminUrl)('tools.php?page=' . FileEditorAdmin::PAGE_SLUG . '&tab=' . $tab);
             $class = 'nav-tab' . ($tab === $activeTab ? ' nav-tab-active' : '');
@@ -122,14 +122,14 @@ final class SecurityDashboard
         $needsAttention = count($reports) - $good;
         $siteHealthUrl = ($this->adminUrl)('site-health.php');
 
-        echo '<p class="bastion-tab-introduction">' . \esc_html__('Review Bastion’s focused posture checks, then use native WordPress Site Health for the full test suite.', 'bastion-security') . '</p>';
+        echo '<p class="bastion-tab-introduction">' . \esc_html__('Review Cerrojo’s focused posture checks, then use native WordPress Site Health for the full test suite.', 'cerrojo-security-toolkit') . '</p>';
         echo '<div class="bastion-summary-cards">';
-        $this->renderSummaryCard(\esc_html__('Total diagnostics', 'bastion-security'), count($reports));
-        $this->renderSummaryCard(\esc_html__('Good', 'bastion-security'), $good);
-        $this->renderSummaryCard(\esc_html__('Needs attention', 'bastion-security'), $needsAttention);
+        $this->renderSummaryCard(\esc_html__('Total diagnostics', 'cerrojo-security-toolkit'), count($reports));
+        $this->renderSummaryCard(\esc_html__('Good', 'cerrojo-security-toolkit'), $good);
+        $this->renderSummaryCard(\esc_html__('Needs attention', 'cerrojo-security-toolkit'), $needsAttention);
         echo '</div>';
-        echo '<p><a class="button" href="' . \esc_url($siteHealthUrl) . '">' . \esc_html__('Open WordPress Site Health', 'bastion-security') . '</a></p>';
-        echo '<h2>' . \esc_html__('Bastion diagnostics', 'bastion-security') . '</h2><div class="bastion-diagnostics">';
+        echo '<p><a class="button" href="' . \esc_url($siteHealthUrl) . '">' . \esc_html__('Open WordPress Site Health', 'cerrojo-security-toolkit') . '</a></p>';
+        echo '<h2>' . \esc_html__('Cerrojo diagnostics', 'cerrojo-security-toolkit') . '</h2><div class="bastion-diagnostics">';
         foreach ($reports as $result) {
             $this->renderDiagnostic($result);
         }
@@ -144,10 +144,10 @@ final class SecurityDashboard
     private function translatedTabLabel(string $tab): string
     {
         return match ($tab) {
-            'overview' => \esc_html__('Overview', 'bastion-security'),
-            'hardening' => \esc_html__('Hardening', 'bastion-security'),
-            'headers' => \esc_html__('Security headers', 'bastion-security'),
-            'rest-api' => \esc_html__('REST API', 'bastion-security'),
+            'overview' => \esc_html__('Overview', 'cerrojo-security-toolkit'),
+            'hardening' => \esc_html__('Hardening', 'cerrojo-security-toolkit'),
+            'headers' => \esc_html__('Security headers', 'cerrojo-security-toolkit'),
+            'rest-api' => \esc_html__('REST API', 'cerrojo-security-toolkit'),
         };
     }
 
@@ -198,7 +198,7 @@ HTML;
     /** @param array<string, mixed> $result */
     private function renderDiagnostic(array $result): void
     {
-        $label = is_string($result['label'] ?? null) ? $result['label'] : 'Bastion diagnostic';
+        $label = is_string($result['label'] ?? null) ? $result['label'] : 'Cerrojo diagnostic';
         $status = is_string($result['status'] ?? null) ? $result['status'] : 'recommended';
         $description = is_string($result['description'] ?? null) ? $result['description'] : '';
         $actions = is_string($result['actions'] ?? null) ? $result['actions'] : '';
@@ -208,9 +208,9 @@ HTML;
         echo '<span class="bastion-diagnostic-title">' . \esc_html($label) . '</span>';
         echo '<span class="bastion-diagnostic-badge ' . \esc_attr($statusPresentation['class']) . '">' . \esc_html($statusPresentation['label']) . '</span>';
         echo '</summary><div class="bastion-diagnostic-panel">';
-        echo '<p class="bastion-diagnostic-status"><span class="bastion-diagnostic-status-label">' . \esc_html__('Status:', 'bastion-security') . '</span> <strong>' . \esc_html($statusPresentation['label']) . '</strong></p>';
+        echo '<p class="bastion-diagnostic-status"><span class="bastion-diagnostic-status-label">' . \esc_html__('Status:', 'cerrojo-security-toolkit') . '</span> <strong>' . \esc_html($statusPresentation['label']) . '</strong></p>';
         echo '<div class="bastion-diagnostic-description">' . \wp_kses_post(($this->sanitizeHtml)($description)) . '</div>';
-        echo '<div class="bastion-diagnostic-action"><strong>' . \esc_html__('Recommended action', 'bastion-security') . '</strong>' . \wp_kses_post(($this->sanitizeHtml)($actions)) . '</div>';
+        echo '<div class="bastion-diagnostic-action"><strong>' . \esc_html__('Recommended action', 'cerrojo-security-toolkit') . '</strong>' . \wp_kses_post(($this->sanitizeHtml)($actions)) . '</div>';
         echo '</div></details>';
     }
 

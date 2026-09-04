@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-const PLUGIN_DIRECTORY = 'bastion-security';
+const PLUGIN_DIRECTORY = 'cerrojo-security-toolkit';
 
 $root = realpath(dirname(__DIR__)) ?: throw new RuntimeException('Could not resolve repository root.');
 $build = $root . '/.build';

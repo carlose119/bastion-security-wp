@@ -12,7 +12,7 @@ use ZipArchive;
 
 final class PackagingTest extends TestCase
 {
-    private const ROOT = 'bastion-security/';
+    private const ROOT = 'cerrojo-security-toolkit/';
 
     private static string $archive;
     private static string $extracted;
@@ -21,7 +21,7 @@ final class PackagingTest extends TestCase
     {
         $root = dirname(__DIR__, 2);
         self::runBuild($root);
-        self::$archive = $root . '/.build/bastion-security.zip';
+        self::$archive = $root . '/.build/cerrojo-security-toolkit.zip';
         self::assertFileExists(self::$archive);
         self::$extracted = sys_get_temp_dir() . '/bastion-package-' . bin2hex(random_bytes(6));
     }
@@ -208,11 +208,12 @@ final class PackagingTest extends TestCase
     public function testBuildRemovesStaleOutputBeforeCreatingTheArchive(): void
     {
         $root = dirname(__DIR__, 2);
+        file_put_contents($root . '/.build/bastion-security.zip', 'stale archive');
         file_put_contents($root . '/.build/bastion-security-wp.zip', 'stale archive');
 
         self::runBuild($root);
 
-        self::assertSame(['bastion-security.zip'], array_values(array_diff(scandir($root . '/.build'), ['.', '..'])));
+        self::assertSame(['cerrojo-security-toolkit.zip'], array_values(array_diff(scandir($root . '/.build'), ['.', '..'])));
     }
 
     public function testBuildIsDeterministic(): void

@@ -10,9 +10,9 @@ use RecursiveIteratorIterator;
 
 final class WordPressOrgMetadataTest extends TestCase
 {
-    private const EXPECTED_PLUGIN_NAME = 'Bastion Security';
-    private const EXPECTED_TEXT_DOMAIN = 'bastion-security';
-    private const EXPECTED_VERSION = '0.2.0';
+    private const EXPECTED_PLUGIN_NAME = 'Cerrojo Security Toolkit';
+    private const EXPECTED_TEXT_DOMAIN = 'cerrojo-security-toolkit';
+    private const EXPECTED_VERSION = '0.2.1';
 
     public function testPublicPluginHeaderUsesWordPressOrgIdentity(): void
     {
@@ -32,7 +32,7 @@ final class WordPressOrgMetadataTest extends TestCase
         $readme = $this->readme();
         $headers = $this->readmeHeaders($readme);
 
-        self::assertStringStartsWith('=== Bastion Security ===', $readme);
+        self::assertStringStartsWith('=== Cerrojo Security Toolkit ===', $readme);
         self::assertSame('carlose119', $headers['Contributors'] ?? null);
         self::assertSame('6.8', $headers['Requires at least'] ?? null);
         self::assertSame('7.1', $headers['Tested up to'] ?? null);
@@ -78,13 +78,15 @@ final class WordPressOrgMetadataTest extends TestCase
                 $file . ' must use literal translation source strings.',
             );
             self::assertDoesNotMatchRegularExpression(
-                '/\\\\(?:__|_e|_x|esc_html__|esc_attr__|esc_html_e|esc_attr_e)\s*\([^;]*?[\'\"]bastion-security-wp[\'\"]\s*\)/s',
+                '/\\\\(?:__|_e|_x|esc_html__|esc_attr__|esc_html_e|esc_attr_e)\s*\([^;]*?[\'\"](?:bastion-security|bastion-security-wp)[\'\"]\s*\)/s',
                 $source,
-                $file . ' still uses the retired translation domain.',
+                $file . ' still uses an old public translation domain.',
             );
         }
 
-        self::assertStringContainsString("PAGE_SLUG = 'bastion-security-wp'", (string) file_get_contents($this->root() . '/src/Admin/FileEditorAdmin.php'));
+        $fileEditorSource = (string) file_get_contents($this->root() . '/src/Admin/FileEditorAdmin.php');
+        self::assertStringContainsString("PAGE_SLUG = 'bastion-security-wp'", $fileEditorSource);
+        self::assertStringContainsString('https://github.com/carlose119/bastion-security-wp', (string) file_get_contents($this->root() . '/bastion-security-wp.php'));
     }
 
     /** @return array<string, string> */

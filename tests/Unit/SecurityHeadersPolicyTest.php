@@ -316,7 +316,7 @@ final class SecurityHeadersPolicyTest extends TestCase
         self::assertStringContainsString('Disable selected', $readme);
         self::assertStringContainsString('aggregate acknowledgement', $readme);
         self::assertStringContainsString('all-or-nothing preflight', $readme);
-        self::assertStringContainsString('Disable all Bastion headers', $readme);
+        self::assertStringContainsString('Disable all Cerrojo headers', $readme);
         self::assertStringContainsString('partial failure', $readme);
         self::assertStringContainsString('no enable-all action', $readme);
         self::assertStringContainsString('Individual baseline and group controls', $readme);

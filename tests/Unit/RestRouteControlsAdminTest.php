@@ -25,7 +25,7 @@ namespace BastionSecurityWP\Tests\Unit {
         {
             $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
 
-            self::assertStringContainsString('**Tools > Bastion Security > REST API**', $readme);
+            self::assertStringContainsString('**Tools > Cerrojo Security Toolkit > REST API**', $readme);
             self::assertStringContainsString('**Clear all REST Route Controls**', $readme);
             self::assertStringContainsString('non-REST admin-post', $readme);
             self::assertStringContainsString('does not load the catalog', $readme);

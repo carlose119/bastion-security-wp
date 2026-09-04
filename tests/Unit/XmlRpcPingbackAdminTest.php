@@ -107,7 +107,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 'later filter at the same priority can re-add',
                 'direct, server, proxy, or CDN headers',
                 'does not disable xmlrpc.php',
-                'Disabling Bastion filtering cannot restore removals made by other components',
+                'Disabling Cerrojo filtering cannot restore removals made by other components',
                 'name="command" value="enable"',
                 'notice notice-error',
             ] as $expected) {

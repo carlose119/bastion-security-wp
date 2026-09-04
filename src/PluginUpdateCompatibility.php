@@ -9,7 +9,7 @@ use Throwable;
 
 final class PluginUpdateCompatibility
 {
-    private const LABEL = 'Bastion: Plugin update compatibility';
+    private const LABEL = 'Cerrojo: Plugin update compatibility';
     private const MAX_CACHE_AGE = 43_200;
     private const FUTURE_TOLERANCE = 300;
     private const MAX_ITEMS = 50;
@@ -296,7 +296,7 @@ final class PluginUpdateCompatibility
         return [
             'label' => self::LABEL,
             'status' => $status->value,
-            'badge' => ['label' => 'Bastion Security', 'color' => 'blue'],
+            'badge' => ['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'],
             'description' => '<p>' . $evidence . '</p><p>' . $meaning . '</p><p>Ownership: Site owner or hosting administrator.</p>',
             'actions' => '<p>' . $remediation . '</p>',
             'test' => 'bastion_security_wp_plugin_update_compatibility',

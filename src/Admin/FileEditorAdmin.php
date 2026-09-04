@@ -76,11 +76,11 @@ final class FileEditorAdmin
     {
         $state = $this->policy->state();
 
-        echo '<section id="bastion-file-editor" class="bastion-tools"><h2>' . \esc_html__('WordPress file editor lock', 'bastion-security') . '</h2>';
+        echo '<section id="bastion-file-editor" class="bastion-tools"><h2>' . \esc_html__('WordPress file editor lock', 'cerrojo-security-toolkit') . '</h2>';
         $this->renderNotice($notice);
 
         if (! $state['available']) {
-            echo '<p>' . \esc_html__('This tool is unavailable on multisite. Bastion does not change the network file-editor policy.', 'bastion-security') . '</p></section>';
+            echo '<p>' . \esc_html__('This tool is unavailable on multisite. Cerrojo does not change the network file-editor policy.', 'cerrojo-security-toolkit') . '</p></section>';
 
             return;
         }
@@ -89,13 +89,13 @@ final class FileEditorAdmin
             $effective = $state['external_value'] ? 'disabled' : 'available';
             echo '<p>' . sprintf(
                 /* translators: %s: effective WordPress file editor state. */
-                \esc_html__('The file editor is currently %s because DISALLOW_FILE_EDIT is defined outside Bastion. Bastion will not override or remove that value.', 'bastion-security'),
+                \esc_html__('The file editor is currently %s because DISALLOW_FILE_EDIT is defined outside Cerrojo. Cerrojo will not override or remove that value.', 'cerrojo-security-toolkit'),
                 \esc_html($effective),
             ) . '</p>';
 
             if ($state['option_enabled']) {
-                echo '<p>' . \esc_html__('A stale Bastion preference is enabled, but it does not own the effective constant. You may clear only that preference.', 'bastion-security') . '</p>';
-                $this->renderForm('disable', 'Clear Bastion preference');
+                echo '<p>' . \esc_html__('A stale Cerrojo preference is enabled, but it does not own the effective constant. You may clear only that preference.', 'cerrojo-security-toolkit') . '</p>';
+                $this->renderForm('disable', 'Clear Cerrojo preference');
             }
 
             echo '</section>';
@@ -104,10 +104,10 @@ final class FileEditorAdmin
         }
 
         echo '<p>' . ($state['plugin_managed']
-            ? \esc_html__('The file editor is disabled by Bastion for this request.', 'bastion-security')
-            : \esc_html__('The file editor is available. Bastion does not currently manage the lock.', 'bastion-security')) . '</p>';
-        echo '<p>' . \esc_html__('Bastion stores one WordPress option. Disabling it stops Bastion from defining the constant on the next request. No configuration file is edited.', 'bastion-security') . '</p>';
-        $this->renderForm($state['option_enabled'] ? 'disable' : 'enable', $state['option_enabled'] ? 'Disable Bastion lock' : 'Enable Bastion lock');
+            ? \esc_html__('The file editor is disabled by Cerrojo for this request.', 'cerrojo-security-toolkit')
+            : \esc_html__('The file editor is available. Cerrojo does not currently manage the lock.', 'cerrojo-security-toolkit')) . '</p>';
+        echo '<p>' . \esc_html__('Cerrojo stores one WordPress option. Disabling it stops Cerrojo from defining the constant on the next request. No configuration file is edited.', 'cerrojo-security-toolkit') . '</p>';
+        $this->renderForm($state['option_enabled'] ? 'disable' : 'enable', $state['option_enabled'] ? 'Disable Cerrojo lock' : 'Enable Cerrojo lock');
         echo '</section>';
     }
 
@@ -124,14 +124,14 @@ final class FileEditorAdmin
     private function renderNotice(string $notice): void
     {
         $message = match ($notice) {
-            'updated' => \__('The Bastion file-editor preference was updated.', 'bastion-security'),
-            'unchanged' => \__('The Bastion file-editor preference was already in the requested state.', 'bastion-security'),
-            'unavailable' => \__('This tool is unavailable on multisite.', 'bastion-security'),
-            'external_conflict' => \__('DISALLOW_FILE_EDIT is defined outside Bastion, so Bastion did not change its preference.', 'bastion-security'),
-            'write_failed' => \__('WordPress could not save the Bastion file-editor preference.', 'bastion-security'),
-            'invalid_nonce' => \__('The request could not be verified. No change was made.', 'bastion-security'),
-            'invalid_command' => \__('The requested command is not supported. No change was made.', 'bastion-security'),
-            'forbidden' => \__('You are not allowed to perform this action. No change was made.', 'bastion-security'),
+            'updated' => \__('The Cerrojo file-editor preference was updated.', 'cerrojo-security-toolkit'),
+            'unchanged' => \__('The Cerrojo file-editor preference was already in the requested state.', 'cerrojo-security-toolkit'),
+            'unavailable' => \__('This tool is unavailable on multisite.', 'cerrojo-security-toolkit'),
+            'external_conflict' => \__('DISALLOW_FILE_EDIT is defined outside Cerrojo, so Cerrojo did not change its preference.', 'cerrojo-security-toolkit'),
+            'write_failed' => \__('WordPress could not save the Cerrojo file-editor preference.', 'cerrojo-security-toolkit'),
+            'invalid_nonce' => \__('The request could not be verified. No change was made.', 'cerrojo-security-toolkit'),
+            'invalid_command' => \__('The requested command is not supported. No change was made.', 'cerrojo-security-toolkit'),
+            'forbidden' => \__('You are not allowed to perform this action. No change was made.', 'cerrojo-security-toolkit'),
             default => null,
         };
 

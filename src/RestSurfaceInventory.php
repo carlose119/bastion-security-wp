@@ -186,9 +186,9 @@ final class RestSurfaceInventory
     private function result(DiagnosticStatus $status, string $description, string $actions): array
     {
         return [
-            'label' => 'Bastion: REST surface inventory',
+            'label' => 'Cerrojo: REST surface inventory',
             'status' => $status->value,
-            'badge' => ['label' => 'Bastion Security', 'color' => 'blue'],
+            'badge' => ['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'],
             'description' => $description,
             'actions' => $actions,
             'test' => 'bastion_security_wp_rest_surface_inventory',
