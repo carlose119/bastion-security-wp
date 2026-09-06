@@ -30,6 +30,7 @@ final class SecurityDashboard
         ?callable $currentUserCan = null,
         ?callable $adminUrl = null,
         ?callable $sanitizeHtml = null,
+        private readonly ?CriticalSettingsAlertAdmin $criticalSettingsAlertAdmin = null,
     ) {
         $this->currentUserCan = Closure::fromCallable($currentUserCan ?? static fn (string $capability): bool => \current_user_can($capability));
         $this->adminUrl = Closure::fromCallable($adminUrl ?? static fn (string $path): string => \admin_url($path));
@@ -62,6 +63,7 @@ final class SecurityDashboard
         $restRouteControlsNotice = $this->queryToken('bastion_rest_route_controls_notice');
         $pluginAlertNotice = $this->queryToken('bastion_plugin_alert_notice');
         $administratorAlertNotice = $this->queryToken('bastion_administrator_alert_notice');
+        $criticalSettingsAlertNotice = $this->queryToken(CriticalSettingsAlertAdmin::NOTICE_QUERY);
 
         echo '<div class="wrap bastion-security-dashboard"><h1>' . \esc_html__('Cerrojo Security Toolkit', 'cerrojo-security-toolkit') . '</h1>';
         $this->renderTabs($tab);
@@ -74,6 +76,9 @@ final class SecurityDashboard
             $this->xmlRpcPingbackAdmin->renderToolSection($xmlRpcPingbackNotice);
             $this->pluginActivityAlertAdmin->renderToolSection($pluginAlertNotice);
             $this->administratorAccountAlertAdmin->renderToolSection($administratorAlertNotice);
+            if ($this->criticalSettingsAlertAdmin !== null) {
+                $this->criticalSettingsAlertAdmin->renderToolSection($criticalSettingsAlertNotice);
+            }
         } elseif ($tab === 'headers') {
             echo '<p class="bastion-tab-introduction">' . \esc_html__('Review exact header policies, select bounded changes, and verify the final response at every serving edge.', 'cerrojo-security-toolkit') . '</p>';
             $this->securityHeadersAdmin->renderToolSection($notice);
@@ -182,7 +187,8 @@ final class SecurityDashboard
 .bastion-security-dashboard .bastion-xmlrpc-pingback-protection,
 .bastion-security-dashboard .bastion-rest-route-controls,
 .bastion-security-dashboard .bastion-plugin-activity-alerts,
-.bastion-security-dashboard .bastion-administrator-account-alerts { margin-top: 28px; padding-top: 8px; border-top: 2px solid #c3c4c7; }
+.bastion-security-dashboard .bastion-administrator-account-alerts,
+.bastion-security-dashboard .bastion-critical-settings-alerts { margin-top: 28px; padding-top: 8px; border-top: 2px solid #c3c4c7; }
 .bastion-security-dashboard .bastion-login-reset { max-width: 72ch; margin-top: 20px; padding: 14px 16px; border-left: 4px solid #dba617; background: #fff; }
 @media (max-width: 782px) {
     .bastion-security-dashboard .bastion-summary-cards { grid-template-columns: 1fr; gap: 10px; }

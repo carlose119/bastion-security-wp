@@ -83,6 +83,7 @@ namespace {
 
 namespace BastionSecurityWP\Tests\Unit {
     use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
+    use BastionSecurityWP\Admin\CriticalSettingsAlertAdmin;
     use BastionSecurityWP\Admin\RestRouteControlsAdmin;
     use BastionSecurityWP\Admin\FileEditorAdmin;
     use BastionSecurityWP\Admin\LoginProtectionAdmin;
@@ -91,6 +92,7 @@ namespace BastionSecurityWP\Tests\Unit {
     use BastionSecurityWP\Admin\SecurityHeadersAdmin;
     use BastionSecurityWP\Admin\XmlRpcPingbackAdmin;
     use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
+    use BastionSecurityWP\Security\CriticalSettingsAlertPolicy;
     use BastionSecurityWP\Security\RestRouteControlsPolicy;
     use BastionSecurityWP\Security\FileEditorPolicy;
     use BastionSecurityWP\Security\LoginProtectionPolicy;
@@ -105,7 +107,7 @@ namespace BastionSecurityWP\Tests\Unit {
     {
         protected function tearDown(): void
         {
-            unset($_GET['tab'], $_GET['bastion_notice'], $_GET['bastion_login_notice'], $_GET['bastion_xmlrpc_pingback_notice'], $_GET['bastion_rest_route_controls_notice'], $_GET['bastion_plugin_alert_notice'], $_GET['bastion_administrator_alert_notice']);
+            unset($_GET['tab'], $_GET['bastion_notice'], $_GET['bastion_login_notice'], $_GET['bastion_xmlrpc_pingback_notice'], $_GET['bastion_rest_route_controls_notice'], $_GET['bastion_plugin_alert_notice'], $_GET['bastion_administrator_alert_notice'], $_GET[CriticalSettingsAlertAdmin::NOTICE_QUERY]);
         }
 
         public function testTabsUseNativeMarkupAndOnlyRenderTheActivePanel(): void
@@ -120,6 +122,7 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertMatchesRegularExpression('/<a class="nav-tab nav-tab-active"[^>]+aria-current="page">/', $overview);
             self::assertSame(12, substr_count($overview, '<details class="bastion-diagnostic">'));
             self::assertStringNotContainsString('WordPress file editor lock', $overview);
+            self::assertStringNotContainsString('URL Change Alerts', $overview);
             self::assertStringNotContainsString('HTTP security header preset', $overview);
 
             $hardening = $this->renderTab('hardening');
@@ -129,6 +132,7 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringNotContainsString('REST Route Controls', $hardening);
             self::assertStringContainsString('Plugin activity email alerts', $hardening);
             self::assertStringContainsString('Administrator account alerts', $hardening);
+            self::assertStringContainsString('URL Change Alerts', $hardening);
             self::assertTrue(strpos($hardening, 'WordPress file editor lock') < strpos($hardening, 'Login Protection'));
             self::assertTrue(strpos($hardening, 'Login Protection') < strpos($hardening, 'XML-RPC Pingback Protection'));
             self::assertTrue(strpos($hardening, 'XML-RPC Pingback Protection') < strpos($hardening, 'Plugin activity email alerts'));
@@ -140,11 +144,13 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('HTTP security header policies', $headers);
             self::assertStringNotContainsString('<summary class="bastion-diagnostic-summary">', $headers);
             self::assertStringNotContainsString('WordPress file editor lock', $headers);
+            self::assertStringNotContainsString('URL Change Alerts', $headers);
 
             $restApi = $this->renderTab('rest-api');
             self::assertStringContainsString('REST Route Controls', $restApi);
             self::assertStringContainsString('name="rules[]"', $restApi);
             self::assertStringNotContainsString('WordPress file editor lock', $restApi);
+            self::assertStringNotContainsString('URL Change Alerts', $restApi);
             self::assertStringNotContainsString('HTTP security header policies', $restApi);
         }
 
@@ -207,6 +213,11 @@ namespace BastionSecurityWP\Tests\Unit {
             $hardening = $this->renderTab('hardening');
             self::assertStringContainsString('Login Protection was enabled', $hardening);
             self::assertStringNotContainsString('file-editor preference was updated', $hardening);
+
+            $_GET[CriticalSettingsAlertAdmin::NOTICE_QUERY] = 'updated';
+            self::assertStringContainsString('URL Change Alert settings were updated.', $this->renderTab('hardening'));
+            self::assertStringNotContainsString('URL Change Alert settings were updated.', $this->renderTab('overview'));
+            self::assertStringNotContainsString('URL Change Alert settings were updated.', $this->renderTab('headers'));
         }
 
             public function testDashboardRendersTwelveBastionResultsAndNativeSiteHealthLink(): void
@@ -512,6 +523,19 @@ namespace BastionSecurityWP\Tests\Unit {
                 static function (): void {},
                 static fn (): string => 'POST',
             );
+            $criticalSettingsAlertPolicy = new CriticalSettingsAlertPolicy(
+                static fn (): array => ['schema_version' => 1, 'enabled' => false, 'recipients' => []],
+                validateEmail: static fn (string $email): bool => true,
+            );
+            $criticalSettingsAlertAdmin = new CriticalSettingsAlertAdmin(
+                $criticalSettingsAlertPolicy,
+                static fn (string $capability): bool => $capability === 'manage_options',
+                static fn (string $nonce, string $action): bool => true,
+                static fn (string $url): bool => true,
+                static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
+                static function (): void {},
+                static fn (): string => 'POST',
+            );
             $securityHeadersPolicy = new SecurityHeadersPolicy(
                 static fn (): bool => false,
                 static fn (): bool => true,
@@ -549,6 +573,7 @@ namespace BastionSecurityWP\Tests\Unit {
                 static fn (string $capability): bool => $authorized && $capability === 'manage_options',
                 static fn (string $path): string => 'https://example.test/wp-admin/' . $path,
                 $sanitize ?? static fn (string $html): string => strip_tags($html, '<p><strong><a>'),
+                criticalSettingsAlertAdmin: $criticalSettingsAlertAdmin,
             );
         }
     }

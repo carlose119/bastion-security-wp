@@ -1,6 +1,6 @@
 # Cerrojo Security Toolkit
 
-Cerrojo Security Toolkit provides focused WordPress security posture diagnostics and seven reversible security tools: five under **Hardening**, plus dedicated **Security headers** and **REST API** tools. It reports evidence, not a guarantee of invulnerability.
+Cerrojo Security Toolkit provides focused WordPress security posture diagnostics and eight reversible security tools: six under **Hardening**, plus dedicated **Security headers** and **REST API** tools. It reports evidence, not a guarantee of invulnerability.
 
 ## Quick navigation
 
@@ -9,7 +9,7 @@ Open **Tools > Cerrojo Security Toolkit** as an administrator with `manage_optio
 | Tab | Purpose |
 |---|---|
 | **Overview** | Summary counts, the twelve Cerrojo diagnostics, and a link to native WordPress Site Health. |
-| **Hardening** | Five reversible tools: the WordPress file-editor lock, Login Protection, XML-RPC Pingback Protection, plugin activity email alerts, and Administrator Account Alerts. |
+| **Hardening** | Six reversible tools: the WordPress file-editor lock, Login Protection, XML-RPC Pingback Protection, plugin activity email alerts, Administrator Account Alerts, and URL Change Alerts. |
 | **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
 | **REST API** | Active registered route-template catalog, method checkboxes, selected/stale state, impact guidance, and clear-all rollback. |
 
@@ -172,6 +172,16 @@ On multisite, the option and observation remain in the current-blog context. Ord
 
 To roll back, clear the enable checkbox and save. Disabling preserves recipients for a later re-enable and stops future attempts; it cannot recall email already handed to the mail transport or reverse account changes. Delete the `bastion_security_wp_administrator_account_alerts` option to remove its saved configuration completely.
 
+### URL Change Alerts
+
+URL Change Alerts are an independent, opt-in setting under **Tools > Cerrojo Security Toolkit > Hardening**. Select **Enable URL Change Alerts**, enter one to 50 recipients separated by commas or new lines, and save. Every recipient must be a valid email address or Cerrojo rejects the whole write. The tool never falls back to an administrator email address or to recipients configured for another alert tool.
+
+Cerrojo observes only successful WordPress `update_option_home` and `update_option_siteurl` hooks for the existing `home` and `siteurl` settings in the current local-blog context. These are separate settings: a successful update to each produces a separate event. It does not observe option additions or deletions, network options, direct SQL or file changes, or scheduled scans. On multisite it does not call `switch_to_blog` or fan out notifications to other sites.
+
+A changed raw string is the event condition, even when its redacted or truncated display reference is identical to the prior reference. Alert displays remove user information, query strings, and fragments; invalid values display as **Unavailable**. Paths are retained when available and may be sensitive, so configure recipients accordingly.
+
+Cerrojo makes one plain-text `wp_mail` attempt per configured recipient. An attempt does not prove delivery. Mail failures do not block the WordPress setting update, and Cerrojo performs no automatic rollback. Disabling alerts preserves recipients for a later re-enable and stops future attempts; it cannot recall email already handed to the mail transport.
+
 ### HTTP security-header policies
 
 Cerrojo provides one backward-compatible baseline toggle and seven independent optional groups. All optional groups are **off by default**. They remain independent of the baseline, and the UI provides both selected batch actions and individual controls.
@@ -233,7 +243,7 @@ Output is escaped, capped at 100 deterministically sorted routes, and reports om
 
 ## Explicit non-goals
 
-Cerrojo includes no public mutation endpoint, user-authored regex/wildcard/namespace-prefix REST policy, global REST shutdown, route removal, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. Alerting is limited to the two independent, opt-in tools described above: plugin installation/activation notices and administrator account lifecycle notices. The settings UI and database writes are limited to the Tools page and plugin-owned file-editor preference, Login Protection configuration/metrics/transients, plugin activity alert configuration, Administrator Account Alerts configuration, XML-RPC pingback preference, REST Route Controls rules, header baseline, and enabled-group state. Administrator Account Alerts add no enforcement, role blocking, account rollback, logs, counters, history, retries, queues, REST/AJAX/cron endpoints, network settings, IP capture, or user-agent capture. Mutations require WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
+Cerrojo includes no public mutation endpoint, user-authored regex/wildcard/namespace-prefix REST policy, global REST shutdown, route removal, file integrity monitoring, general audit log, cron tasks, filesystem writes, permanent login locks, or allowlists. Alerting is limited to three independent, opt-in tools described above: plugin installation/activation notices, administrator account lifecycle notices, and URL Change Alerts. The settings UI and database writes are limited to the Tools page and plugin-owned file-editor preference, Login Protection configuration/metrics/transients, plugin activity alert configuration, Administrator Account Alerts configuration, URL Change Alert configuration, XML-RPC pingback preference, REST Route Controls rules, header baseline, and enabled-group state. Administrator Account Alerts add no enforcement, role blocking, account rollback, logs, counters, history, retries, queues, REST/AJAX/cron endpoints, network settings, IP capture, or user-agent capture. Mutations require WordPress administrative capability, strict target allowlists, and target-bound nonce protections; there is no AJAX or REST mutation path.
 
 ## Compatibility target
 
@@ -277,6 +287,7 @@ For release validation and deployment, extract the production ZIP first. Run Wor
 - **REST Route Controls:** open **Tools > Cerrojo Security Toolkit > REST API** and use the separate **Clear all REST Route Controls** action. This non-REST admin-post rollback does not load the catalog, so it remains available if catalog loading fails. Cerrojo stops blocking configured routes on later requests, but clearing its rules cannot restore behavior blocked by another component.
 - **Plugin activity email alerts:** open **Tools > Cerrojo Security Toolkit > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; already handed-off email cannot be recalled.
 - **Administrator Account Alerts:** open **Tools > Cerrojo Security Toolkit > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; it does not reverse account changes or recall handed-off email. Delete `bastion_security_wp_administrator_account_alerts` to remove this saved configuration.
+- **URL Change Alerts:** open **Tools > Cerrojo Security Toolkit > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future mail attempts; it does not roll back a WordPress URL update or recall handed-off email. Delete `bastion_security_wp_critical_settings_alerts` to remove this saved configuration.
 - **Plugin:** deactivate Cerrojo to remove its twelve Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
 
 Cerrojo creates no cron, queue, audit-log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.

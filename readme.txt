@@ -23,6 +23,7 @@ Current tools include:
 * Staged HTTP security header policies with baseline, optional groups, compatibility warnings, and rollback controls.
 * Email alerts for supported plugin installation and activation events.
 * Email alerts for supported administrator account lifecycle events.
+* URL Change Alerts for supported successful local WordPress Address and Site Address updates.
 * Selective REST API blocking by HTTP method and registered route template. Matching rules apply to all callers, including administrators and authenticated integrations.
 
 Controls are designed to be reviewed, enabled, verified, and reversed individually. Coverage depends on the WordPress hooks and serving paths described in each tool. Login throttling is best-effort, email delivery depends on the site's mail transport, and headers must be verified at every cache, proxy, CDN, and origin edge.
@@ -52,6 +53,14 @@ Yes. The settings UI provides controls to disable or clear plugin-managed polici
 = Who is affected by a blocked REST route? =
 
 Every caller whose request matches the selected HTTP method and registered route template. There are no administrator, capability, cookie, or Application Password exemptions.
+
+= What do URL Change Alerts observe? =
+
+URL Change Alerts are independently opt-in under Tools > Cerrojo Security Toolkit > Hardening. Enable the tool, enter one to 50 valid recipient addresses separated by commas or new lines, and save. There is no administrator-email fallback and no reuse of recipients from another alert tool. Disabling preserves recipients for a later re-enable.
+
+The tool observes only successful update_option_home and update_option_siteurl hooks for the existing home and siteurl settings in the current local-blog context. They are separate settings, so each successful update is a separate event. It does not observe option additions, deletions, network options, direct SQL or file changes, or scheduled scans, and it does not switch sites or fan out on multisite.
+
+A changed raw string is observed even when redaction or truncation makes the displayed references identical. Displayed values remove user information, query strings, and fragments; invalid values are Unavailable. Paths are retained when available and may be sensitive. Cerrojo makes one plain-text wp_mail attempt per recipient; an attempt is not delivery. Mail failures do not block a WordPress update or trigger automatic rollback.
 
 = Does uninstalling remove saved data? =
 

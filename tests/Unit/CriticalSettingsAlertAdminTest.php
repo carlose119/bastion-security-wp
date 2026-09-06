@@ -30,20 +30,20 @@ namespace {
 }
 
 namespace BastionSecurityWP\Tests\Unit {
-    use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
-    use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
+    use BastionSecurityWP\Admin\CriticalSettingsAlertAdmin;
+    use BastionSecurityWP\Security\CriticalSettingsAlertPolicy;
     use PHPUnit\Framework\TestCase;
 
-    final class AdministratorAccountAlertAdminTest extends TestCase
+    final class CriticalSettingsAlertAdminTest extends TestCase
     {
-        public function testMutationRequiresPostCapabilityExactTargetCommandAndCommandBoundNonce(): void
+        public function testMutationRequiresPostCapabilityExactTargetCommandAndOperationBoundNonce(): void
         {
             foreach ([
-                ['GET', true, 'administrator_account_alerts', 'save', true, 'invalid_request'],
-                ['POST', false, 'administrator_account_alerts', 'save', true, 'forbidden'],
+                ['GET', true, 'critical_settings_alerts', 'save', true, 'invalid_request'],
+                ['POST', false, 'critical_settings_alerts', 'save', true, 'forbidden'],
                 ['POST', true, 'wrong', 'save', true, 'invalid_command'],
-                ['POST', true, 'administrator_account_alerts', 'toggle', true, 'invalid_command'],
-                ['POST', true, 'administrator_account_alerts', 'save', false, 'invalid_nonce'],
+                ['POST', true, 'critical_settings_alerts', 'toggle', true, 'invalid_command'],
+                ['POST', true, 'critical_settings_alerts', 'save', false, 'invalid_nonce'],
             ] as [$method, $authorized, $target, $command, $nonceValid, $notice]) {
                 $harness = $this->admin(method: $method, authorized: $authorized, nonceValid: $nonceValid);
                 $harness['admin']->handle([
@@ -55,34 +55,34 @@ namespace BastionSecurityWP\Tests\Unit {
                 ]);
 
                 self::assertSame(['enabled' => false, 'recipients' => []], $harness['option']);
-                self::assertStringContainsString('bastion_administrator_alert_notice=' . $notice, $harness['redirects'][0]);
+                self::assertStringContainsString('bastion_critical_settings_alert_notice=' . $notice, $harness['redirects'][0]);
             }
         }
 
-        public function testSaveUsesBoundedPolicyOutcomesAndDisablingPreservesRecipients(): void
+        public function testSaveUsesPolicyOutcomesAndDisablingPreservesRecipients(): void
         {
             $harness = $this->admin();
             $harness['admin']->handle([
-                'target' => 'administrator_account_alerts',
+                'target' => 'critical_settings_alerts',
                 'command' => 'save',
                 '_wpnonce' => 'valid',
                 'enabled' => '1',
                 'recipients' => "First@Example.test\nsecond@example.test",
             ]);
-            self::assertSame(['enabled' => true, 'recipients' => ['First@Example.test', 'second@example.test']], $harness['option']);
-            self::assertStringContainsString('bastion_administrator_alert_notice=updated', $harness['redirects'][0]);
+            self::assertSame(['schema_version' => 1, 'enabled' => true, 'recipients' => ['First@Example.test', 'second@example.test']], $harness['option']);
+            self::assertStringContainsString('bastion_critical_settings_alert_notice=updated', $harness['redirects'][0]);
 
             $harness['admin']->handle([
-                'target' => 'administrator_account_alerts',
+                'target' => 'critical_settings_alerts',
                 'command' => 'save',
                 '_wpnonce' => 'valid',
                 'recipients' => 'replacement@example.test',
             ]);
-            self::assertSame(['enabled' => false, 'recipients' => ['First@Example.test', 'second@example.test']], $harness['option']);
-            self::assertStringContainsString('bastion_administrator_alert_notice=updated', $harness['redirects'][1]);
+            self::assertSame(['schema_version' => 1, 'enabled' => false, 'recipients' => ['First@Example.test', 'second@example.test']], $harness['option']);
+            self::assertStringContainsString('bastion_critical_settings_alert_notice=updated', $harness['redirects'][1]);
         }
 
-        public function testMalformedPayloadsAreRejectedWithoutPartialWrites(): void
+        public function testMalformedPayloadsAndInvalidRecipientsAreRejectedWithoutWrites(): void
         {
             $harness = $this->admin();
             foreach ([
@@ -93,72 +93,55 @@ namespace BastionSecurityWP\Tests\Unit {
                 ['enabled' => '1', 'recipients' => '', 'notice' => 'recipient_required'],
             ] as $case) {
                 $harness['admin']->handle([
-                    'target' => 'administrator_account_alerts',
+                    'target' => 'critical_settings_alerts',
                     'command' => 'save',
                     '_wpnonce' => 'valid',
                     'enabled' => $case['enabled'],
                     'recipients' => $case['recipients'],
                 ]);
-                self::assertStringContainsString('bastion_administrator_alert_notice=' . $case['notice'], end($harness['redirects']));
+                self::assertStringContainsString('bastion_critical_settings_alert_notice=' . $case['notice'], end($harness['redirects']));
             }
             self::assertSame(['enabled' => false, 'recipients' => []], $harness['option']);
         }
 
-        public function testUiExplainsEventsPrivacyActorMultisiteDeliveryRollbackAndLimitations(): void
+        public function testUiUsesUrlChangeAlertsTitleAndExplainsScopePrivacyAndDeliveryLimits(): void
         {
-            $harness = $this->admin(['enabled' => true, 'recipients' => ['one@example.test', 'two@example.test']]);
+            $harness = $this->admin(['schema_version' => 1, 'enabled' => true, 'recipients' => ['one@example.test', 'two@example.test']]);
             ob_start();
             $harness['admin']->renderToolSection('updated');
             $html = (string) ob_get_clean();
 
             foreach ([
-                'Administrator account alerts', 'Administrator role granted', 'Administrator role removed',
-                'Administrator account deleted', 'one plain-text email per recipient', 'not disclosed',
-                'contextual current user', 'does not prove causality', 'current site', 'remove_user_from_blog',
-                'super-admin', 'network deletion', 'does not prove delivery', 'Disabling preserves',
-                'does not block or roll back',
+                'URL Change Alerts', 'home', 'siteurl', 'successful local updates', 'Old and new URL values',
+                'redacted and bounded', 'two settings', 'two notices', 'one plain-text email per recipient',
+                'does not prove delivery', 'current site context', 'no cross-site or network fan-out',
+                'Disabled by default', 'does not fall back', '50 recipients', 'Disabling preserves',
             ] as $expected) {
                 self::assertStringContainsString($expected, $html, $expected);
             }
             self::assertStringContainsString('name="enabled" value="1" checked', $html);
             self::assertStringContainsString("one@example.test\ntwo@example.test", html_entity_decode($html));
-            self::assertStringNotContainsString('<script', $html);
+            self::assertStringContainsString('name="action" value="bastion_security_wp_critical_settings_alerts"', $html);
+            self::assertStringContainsString('name="target" value="critical_settings_alerts"', $html);
+            self::assertStringContainsString('nonce-for-bastion_security_wp_critical_settings_alerts_save', $html);
             self::assertStringContainsString('notice notice-success', $html);
-        }
-
-        public function testReadmeDocumentsSetupEventsPrivacyMultisiteDeliveryRollbackAndDatabaseScope(): void
-        {
-            $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
-
-            foreach ([
-                'eight reversible security tools', 'twelve Cerrojo diagnostics', 'Administrator Account Alerts',
-                'comma or newline', '50 recipients', '254 bytes', 'never falls back to `admin_email`',
-                'Administrator role granted', 'Administrator role removed', 'Administrator account deleted',
-                '`add_user_role`', '`remove_user_role`', '`deleted_user`', '`set_user_role`', '`user_register`',
-                '`delete_user`', 'target user ID', 'contextual current WordPress user ID',
-                'does not prove who caused', 'IP addresses', 'user agents', 'one plain-text `wp_mail` call per recipient',
-                '`remove_user_from_blog`', '`remove_all_caps`', 'super-admin', 'network deletion',
-                'does not call `switch_to_blog`', 'does not reverse account changes',
-                '`bastion_security_wp_administrator_account_alerts`', 'no enforcement', 'no AJAX or REST mutation path',
-            ] as $expected) {
-                self::assertStringContainsString($expected, $readme, $expected);
-            }
+            self::assertStringNotContainsString('<script', $html);
         }
 
         public function testRedirectAndNoticesAreDedicatedAllowlistedAndAccuratelyClassified(): void
         {
             $harness = $this->admin();
             $harness['admin']->handle([
-                'target' => 'administrator_account_alerts',
+                'target' => 'critical_settings_alerts',
                 'command' => 'save',
                 '_wpnonce' => 'valid',
                 'recipients' => '',
             ]);
             self::assertSame(
-                'https://example.test/wp-admin/tools.php?page=bastion-security-wp&tab=hardening&bastion_administrator_alert_notice=unchanged#bastion-administrator-account-alerts',
+                'https://example.test/wp-admin/tools.php?page=bastion-security-wp&tab=hardening&bastion_critical_settings_alert_notice=unchanged#bastion-critical-settings-alerts',
                 $harness['redirects'][0],
             );
-            self::assertSame(['bastion_security_wp_administrator_account_alerts_save'], $harness['nonceActions']);
+            self::assertSame(['bastion_security_wp_critical_settings_alerts_save'], $harness['nonceActions']);
             self::assertSame(1, $harness['terminations']);
 
             foreach ([
@@ -189,12 +172,12 @@ namespace BastionSecurityWP\Tests\Unit {
                 'nonceActions' => [],
                 'terminations' => 0,
             ];
-            $policy = new AdministratorAccountAlertPolicy(
+            $policy = new CriticalSettingsAlertPolicy(
                 static function () use (&$state): mixed { return $state['option']; },
                 static function (array $value) use (&$state): bool { $state['option'] = $value; return true; },
                 static fn (string $email): bool => filter_var($email, FILTER_VALIDATE_EMAIL) !== false,
             );
-            $admin = new AdministratorAccountAlertAdmin(
+            $admin = new CriticalSettingsAlertAdmin(
                 $policy,
                 static fn (string $capability): bool => $authorized && $capability === 'manage_options',
                 static function (string $nonce, string $action) use (&$state, $nonceValid): bool {

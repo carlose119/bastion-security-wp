@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BastionSecurityWP;
 
 use BastionSecurityWP\Admin\AdministratorAccountAlertAdmin;
+use BastionSecurityWP\Admin\CriticalSettingsAlertAdmin;
 use BastionSecurityWP\Admin\RestRouteControlsAdmin;
 use BastionSecurityWP\Admin\FileEditorAdmin;
 use BastionSecurityWP\Admin\LoginProtectionAdmin;
@@ -13,6 +14,7 @@ use BastionSecurityWP\Admin\SecurityDashboard;
 use BastionSecurityWP\Admin\SecurityHeadersAdmin;
 use BastionSecurityWP\Admin\XmlRpcPingbackAdmin;
 use BastionSecurityWP\Security\AdministratorAccountAlertPolicy;
+use BastionSecurityWP\Security\CriticalSettingsAlertPolicy;
 use BastionSecurityWP\Security\RestRouteControlsPolicy;
 use BastionSecurityWP\Security\FileEditorPolicy;
 use BastionSecurityWP\Security\LoginProtectionPolicy;
@@ -48,6 +50,7 @@ final class Bootstrap
         $loginProtectionPolicy = new LoginProtectionPolicy();
         $pluginActivityAlertPolicy = new PluginActivityAlertPolicy();
         $administratorAccountAlertPolicy = new AdministratorAccountAlertPolicy();
+        $criticalSettingsAlertPolicy = new CriticalSettingsAlertPolicy();
         $xmlRpcPingbackPolicy = new XmlRpcPingbackPolicy();
         $restRouteControlsPolicy = new RestRouteControlsPolicy();
         $restRouteCatalog = new RestRouteCatalog();
@@ -78,8 +81,19 @@ final class Bootstrap
             $restRouteControlsAdmin = new RestRouteControlsAdmin($restRouteControlsPolicy, $restRouteCatalog);
             $pluginActivityAlertAdmin = new PluginActivityAlertAdmin($pluginActivityAlertPolicy);
             $administratorAccountAlertAdmin = new AdministratorAccountAlertAdmin($administratorAccountAlertPolicy);
+            $criticalSettingsAlertAdmin = new CriticalSettingsAlertAdmin($criticalSettingsAlertPolicy);
             $securityHeadersAdmin = new SecurityHeadersAdmin($securityHeadersPolicy);
-            $dashboard = new SecurityDashboard($siteHealth, $fileEditorAdmin, $securityHeadersAdmin, $loginProtectionAdmin, $xmlRpcPingbackAdmin, $restRouteControlsAdmin, $pluginActivityAlertAdmin, $administratorAccountAlertAdmin);
+            $dashboard = new SecurityDashboard(
+                $siteHealth,
+                $fileEditorAdmin,
+                $securityHeadersAdmin,
+                $loginProtectionAdmin,
+                $xmlRpcPingbackAdmin,
+                $restRouteControlsAdmin,
+                $pluginActivityAlertAdmin,
+                $administratorAccountAlertAdmin,
+                criticalSettingsAlertAdmin: $criticalSettingsAlertAdmin,
+            );
             \add_action('wp_login_failed', $loginProtectionPolicy->recordFailure(...), 10, 2);
             \add_action('wp_login', $loginProtectionPolicy->recordSuccess(...), 10, 2);
             \add_action('upgrader_process_complete', $pluginActivityAlertPolicy->handleUpgraderProcessComplete(...), 10, 2);
@@ -87,6 +101,8 @@ final class Bootstrap
             \add_action('add_user_role', $administratorAccountAlertPolicy->handleAddUserRole(...), 10, 2);
             \add_action('remove_user_role', $administratorAccountAlertPolicy->handleRemoveUserRole(...), 10, 2);
             \add_action('deleted_user', $administratorAccountAlertPolicy->handleDeletedUser(...), 10, 3);
+            \add_action('update_option_home', $criticalSettingsAlertPolicy->onOptionUpdated(...), 10, 3);
+            \add_action('update_option_siteurl', $criticalSettingsAlertPolicy->onOptionUpdated(...), 10, 3);
             \add_action('admin_menu', $dashboard->registerPage(...));
             \add_action('admin_post_' . FileEditorAdmin::POST_ACTION, $fileEditorAdmin->handleRequest(...));
             \add_action('admin_post_' . LoginProtectionAdmin::POST_ACTION, $loginProtectionAdmin->handleRequest(...));
@@ -94,6 +110,7 @@ final class Bootstrap
             \add_action('admin_post_' . RestRouteControlsAdmin::POST_ACTION, $restRouteControlsAdmin->handleRequest(...));
             \add_action('admin_post_' . PluginActivityAlertAdmin::POST_ACTION, $pluginActivityAlertAdmin->handleRequest(...));
             \add_action('admin_post_' . AdministratorAccountAlertAdmin::POST_ACTION, $administratorAccountAlertAdmin->handleRequest(...));
+            \add_action('admin_post_' . CriticalSettingsAlertAdmin::POST_ACTION, $criticalSettingsAlertAdmin->handleRequest(...));
             \add_action('admin_post_' . SecurityHeadersAdmin::POST_ACTION, $securityHeadersAdmin->handleRequest(...));
         }
     }
