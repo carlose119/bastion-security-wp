@@ -52,6 +52,47 @@ namespace {
         }
     }
 
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string
+        {
+            return trim(strip_tags($value));
+        }
+    }
+
+    if (! function_exists('add_management_page')) {
+        function add_management_page(string $pageTitle, string $menuTitle, string $capability, string $menuSlug, callable $callback): string
+        {
+            $GLOBALS['bastion_admin_page_callbacks'][] = $callback;
+
+            return 'tools_page_' . $menuSlug;
+        }
+    }
+
+    if (! function_exists('add_action')) {
+        function add_action(string $hook, callable $callback): bool
+        {
+            $GLOBALS['bastion_admin_hooks'][$hook][] = $callback;
+
+            return true;
+        }
+    }
+
+    if (! function_exists('plugins_url')) {
+        function plugins_url(string $path = '', string $plugin = ''): string
+        {
+            return 'https://example.test/wp-content/plugins/cerrojo-security-toolkit/' . ltrim($path, '/');
+        }
+    }
+
+    if (! function_exists('wp_enqueue_style')) {
+        function wp_enqueue_style(string $handle, string $src = '', array $deps = [], string|bool|null $ver = false): bool
+        {
+            $GLOBALS['bastion_enqueued_styles'][] = compact('handle', 'src', 'deps', 'ver');
+
+            return true;
+        }
+    }
+
     if (! function_exists('sanitize_key')) {
         function sanitize_key(string $value): string
         {
@@ -108,6 +149,23 @@ namespace BastionSecurityWP\Tests\Unit {
         protected function tearDown(): void
         {
             unset($_GET['tab'], $_GET['bastion_notice'], $_GET['bastion_login_notice'], $_GET['bastion_xmlrpc_pingback_notice'], $_GET['bastion_rest_route_controls_notice'], $_GET['bastion_plugin_alert_notice'], $_GET['bastion_administrator_alert_notice'], $_GET[CriticalSettingsAlertAdmin::NOTICE_QUERY]);
+            unset($GLOBALS['bastion_admin_page_callbacks'], $GLOBALS['bastion_admin_hooks'], $GLOBALS['bastion_enqueued_styles']);
+        }
+
+        public function testAdminStylesAreEnqueuedOnlyForThePluginManagementPage(): void
+        {
+            $GLOBALS['bastion_admin_hooks'] = [];
+            $GLOBALS['bastion_enqueued_styles'] = [];
+            $this->dashboard()->registerPage();
+
+            self::assertArrayHasKey('admin_enqueue_scripts', $GLOBALS['bastion_admin_hooks']);
+            $enqueue = $GLOBALS['bastion_admin_hooks']['admin_enqueue_scripts'][0];
+            $enqueue('tools_page_other-plugin');
+            self::assertSame([], $GLOBALS['bastion_enqueued_styles']);
+
+            $enqueue('tools_page_bastion-security-wp');
+            self::assertSame('bastion-security-wp-admin', $GLOBALS['bastion_enqueued_styles'][0]['handle']);
+            self::assertSame('https://example.test/wp-content/plugins/cerrojo-security-toolkit/assets/css/admin.css', $GLOBALS['bastion_enqueued_styles'][0]['src']);
         }
 
         public function testTabsUseNativeMarkupAndOnlyRenderTheActivePanel(): void
@@ -278,9 +336,11 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('<span class="bastion-diagnostic-status-label">Status:</span>', $html);
             self::assertStringContainsString('<strong>Recommended action</strong>', $html);
             self::assertStringContainsString('class="wrap bastion-security-dashboard"', $html);
-            self::assertStringContainsString('.bastion-security-dashboard .bastion-diagnostics', $html);
-            self::assertStringContainsString('@media (max-width: 782px)', $html);
+            self::assertStringNotContainsString('<style', $html);
             self::assertStringNotContainsString('<script', $html);
+            $styles = (string) file_get_contents(__DIR__ . '/../../assets/css/admin.css');
+            self::assertStringContainsString('.bastion-security-dashboard .bastion-diagnostics', $styles);
+            self::assertStringContainsString('@media (max-width: 782px)', $styles);
         }
 
         public function testDiagnosticStatusClassUsesAnAllowlist(): void
@@ -373,10 +433,12 @@ namespace BastionSecurityWP\Tests\Unit {
             $root = dirname(__DIR__, 2);
             $adminFiles = [
                 'AdministratorAccountAlertAdmin.php',
+                'CriticalSettingsAlertAdmin.php',
                 'FileEditorAdmin.php',
                 'LoginProtectionAdmin.php',
                 'PluginActivityAlertAdmin.php',
                 'RestRouteControlsAdmin.php',
+                'SecurityHeadersAdmin.php',
                 'XmlRpcPingbackAdmin.php',
             ];
 
@@ -387,7 +449,7 @@ namespace BastionSecurityWP\Tests\Unit {
                     $source,
                     $file . ' must use literal translation source strings.',
                 );
-                self::assertStringContainsString('Raw POST is handed to handle()', $source, $file);
+                self::assertStringContainsString("\\sanitize_text_field(\\wp_unslash(\$post['_wpnonce']))", $source, $file);
                 self::assertStringNotContainsString("notice-' . \$severity", $source, $file);
             }
 
@@ -399,6 +461,7 @@ namespace BastionSecurityWP\Tests\Unit {
             $dashboard = (string) file_get_contents($root . '/src/Admin/SecurityDashboard.php');
             self::assertStringContainsString('is_string($_GET[$key]) ? \\sanitize_key(\\wp_unslash($_GET[$key]))', $dashboard);
             self::assertStringContainsString('Read-only PRG notice and tab selectors cannot mutate state', $dashboard);
+            self::assertStringNotContainsString('<style>', $dashboard);
         }
 
         private function renderTab(string $tab): string

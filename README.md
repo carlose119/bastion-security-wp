@@ -272,7 +272,7 @@ composer package
 composer package:verify
 ```
 
-The artifact is written to `.build/cerrojo-security-toolkit.zip`, rooted at `cerrojo-security-toolkit/`. The distribution contains `bastion-security-wp.php`, `readme.txt`, `LICENSE`, a sanitized production `composer.json`, `src/`, and a production-only authoritative `vendor/` generated in disposable staging. The packaged Composer manifest contains only runtime package identity, the PHP requirement, and the PSR-4 autoload mapping; `composer.lock`, development metadata, and development dependencies are excluded from the final ZIP.
+The artifact is written to `.build/cerrojo-security-toolkit.zip`, rooted at `cerrojo-security-toolkit/`. The distribution contains `cerrojo-security-toolkit.php`, `readme.txt`, `LICENSE`, a sanitized production `composer.json`, `src/`, and a production-only authoritative `vendor/` generated in disposable staging. The packaged Composer manifest contains only runtime package identity, the PHP requirement, and the PSR-4 autoload mapping; `composer.lock`, development metadata, and development dependencies are excluded from the final ZIP.
 
 Archive entries are sorted, use normalized `/` separators, fixed permissions, and the fixed local archive date 1981-01-01. The build creates that date with local-time calendar components so ZIP's DOS date remains stable across timezones. Identical bytes are expected with the same PHP, Composer, libzip, dependency lockfile, and source; ZIP compression implementations can differ across environments, so cross-toolchain byte identity is not claimed.
 

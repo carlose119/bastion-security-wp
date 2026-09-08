@@ -24,6 +24,12 @@ namespace {
     if (! function_exists('submit_button')) {
         function submit_button(string $label, string $type = 'primary'): void { echo '<button type="submit" class="button button-' . esc_attr($type) . '">' . esc_html($label) . '</button>'; }
     }
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string { return stripslashes($value); }
+    }
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+    }
 }
 
 namespace BastionSecurityWP\Tests\Unit {
@@ -51,7 +57,23 @@ namespace BastionSecurityWP\Tests\Unit {
             }
         }
 
-        public function testEnableAndDisableUseDedicatedSafePrgRouteWithoutAcknowledgement(): void
+        public function testRequestBoundaryNormalizesStringNoncesAndRejectsMalformedNonceTypesWithoutMutation(): void
+    {
+        $harness = $this->admin();
+        $_POST = ['target' => 'xmlrpc_pingback_protection', 'command' => 'enable', '_wpnonce' => 'valid\\<ignored>'];
+        $harness['admin']->handleRequest();
+        self::assertTrue($harness['enabled']);
+
+        $harness = $this->admin();
+        $_POST = ['target' => 'xmlrpc_pingback_protection', 'command' => 'enable', '_wpnonce' => ['valid']];
+        $harness['admin']->handleRequest();
+        self::assertFalse($harness['enabled']);
+        self::assertSame([], $harness['nonceActions']);
+        self::assertStringContainsString('invalid_nonce', $harness['redirects'][0]);
+        unset($_POST);
+    }
+
+    public function testEnableAndDisableUseDedicatedSafePrgRouteWithoutAcknowledgement(): void
         {
             $harness = $this->admin();
             $harness['admin']->handle([

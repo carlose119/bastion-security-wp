@@ -27,7 +27,7 @@ if ($mode === 'verify') {
 }
 
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
-foreach (['woocommerce/woocommerce.php', 'bastion-security-wp/bastion-security-wp.php'] as $plugin) {
+foreach (['woocommerce/woocommerce.php', 'bastion-security-wp/cerrojo-security-toolkit.php'] as $plugin) {
     $result = activate_plugin($plugin, '', false, true);
     check(! is_wp_error($result) && is_plugin_active($plugin), 'Could not activate ' . $plugin);
 }

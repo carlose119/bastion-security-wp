@@ -27,6 +27,12 @@ namespace {
     if (! function_exists('date_i18n')) {
         function date_i18n(string $format, int $timestamp): string { return gmdate('Y-m-d H:i:s', $timestamp); }
     }
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string { return stripslashes($value); }
+    }
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+    }
 }
 
 namespace BastionSecurityWP\Tests\Unit {
@@ -78,7 +84,23 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('bastion_login_notice=reset', $harness['redirects'][3]);
         }
 
-        public function testRedirectIsDedicatedPrgRouteWithHardeningTabAndFragment(): void
+        public function testRequestBoundaryNormalizesStringNoncesAndRejectsMalformedNonceTypesWithoutMutation(): void
+    {
+        $harness = $this->admin();
+        $_POST = ['target' => 'login_protection', 'command' => 'enable', '_wpnonce' => 'valid\\<ignored>', 'acknowledge' => '1'];
+        $harness['admin']->handleRequest();
+        self::assertTrue($harness['config']['enabled']);
+
+        $harness = $this->admin();
+        $_POST = ['target' => 'login_protection', 'command' => 'enable', '_wpnonce' => ['valid'], 'acknowledge' => '1'];
+        $harness['admin']->handleRequest();
+        self::assertFalse($harness['config']['enabled']);
+        self::assertSame([], $harness['nonceActions']);
+        self::assertStringContainsString('invalid_nonce', $harness['redirects'][0]);
+        unset($_POST);
+    }
+
+    public function testRedirectIsDedicatedPrgRouteWithHardeningTabAndFragment(): void
         {
             $harness = $this->admin();
             $harness['admin']->handle([

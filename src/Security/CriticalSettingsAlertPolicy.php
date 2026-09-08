@@ -28,6 +28,7 @@ final class CriticalSettingsAlertPolicy
     private Closure $siteName;
     private Closure $siteUrl;
     private Closure $timestamp;
+    private Closure $parseUrl;
 
     public function __construct(
         ?callable $readOption = null,
@@ -37,6 +38,7 @@ final class CriticalSettingsAlertPolicy
         ?callable $siteName = null,
         ?callable $siteUrl = null,
         ?callable $timestamp = null,
+        ?callable $parseUrl = null,
     ) {
         $this->readOption = Closure::fromCallable($readOption ?? static fn (): mixed => \get_option(self::OPTION_NAME, null));
         $this->writeOption = Closure::fromCallable($writeOption ?? static fn (array $value): bool => \update_option(self::OPTION_NAME, $value));
@@ -45,6 +47,7 @@ final class CriticalSettingsAlertPolicy
         $this->siteName = Closure::fromCallable($siteName ?? static fn (): string => (string) \get_bloginfo('name'));
         $this->siteUrl = Closure::fromCallable($siteUrl ?? static fn (): string => (string) \home_url('/'));
         $this->timestamp = Closure::fromCallable($timestamp ?? static fn (): string => (string) \date_i18n('Y-m-d H:i:s T'));
+        $this->parseUrl = Closure::fromCallable($parseUrl ?? static fn (string $url): array|false => \wp_parse_url($url));
     }
 
     /** @return array{enabled: bool, recipients: list<string>} */
@@ -214,7 +217,7 @@ final class CriticalSettingsAlertPolicy
         if ($value === '') {
             return null;
         }
-        $parts = parse_url($value);
+        $parts = ($this->parseUrl)($value);
         if (! is_array($parts) || ! is_string($parts['scheme'] ?? null) || ! is_string($parts['host'] ?? null)
             || ! in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
             return null;

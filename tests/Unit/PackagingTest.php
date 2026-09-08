@@ -57,11 +57,11 @@ final class PackagingTest extends TestCase
         sort($sorted, SORT_STRING);
         self::assertSame($sorted, $entries);
 
-        foreach (['bastion-security-wp.php', 'readme.txt', 'LICENSE', 'composer.json', 'src/Bootstrap.php', 'vendor/autoload.php'] as $required) {
+        foreach (['cerrojo-security-toolkit.php', 'readme.txt', 'LICENSE', 'composer.json', 'src/Bootstrap.php', 'assets/css/admin.css', 'vendor/autoload.php'] as $required) {
             self::assertContains(self::ROOT . $required, $entries);
         }
 
-        $allowedTopLevel = ['LICENSE', 'bastion-security-wp.php', 'composer.json', 'readme.txt', 'src', 'vendor'];
+        $allowedTopLevel = ['LICENSE', 'assets', 'cerrojo-security-toolkit.php', 'composer.json', 'readme.txt', 'src', 'vendor'];
 
         foreach ($entries as $entry) {
             $relative = substr($entry, strlen(self::ROOT));
@@ -179,7 +179,7 @@ final class PackagingTest extends TestCase
         $zip->close();
 
         self::assertFalse(function_exists('add_filter'));
-        $entry = self::$extracted . '/' . self::ROOT . 'bastion-security-wp.php';
+        $entry = self::$extracted . '/' . self::ROOT . 'cerrojo-security-toolkit.php';
         $smoke = self::$extracted . '/smoke.php';
         $code = '<?php define("ABSPATH", ' . var_export(self::$extracted . '/', true) . ');'
             . 'require ' . var_export($entry, true) . ';'
@@ -209,7 +209,7 @@ final class PackagingTest extends TestCase
     {
         $root = dirname(__DIR__, 2);
         file_put_contents($root . '/.build/bastion-security.zip', 'stale archive');
-        file_put_contents($root . '/.build/bastion-security-wp.zip', 'stale archive');
+        file_put_contents($root . '/.build/cerrojo-security-toolkit-stale.zip', 'stale archive');
 
         self::runBuild($root);
 

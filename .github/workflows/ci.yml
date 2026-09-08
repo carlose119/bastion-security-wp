@@ -125,7 +125,7 @@ jobs:
           unzip -q "$fixture/downloads/woocommerce.zip" -d "$fixture/site/wordpress/wp-content/plugins"
           composer install --no-dev --classmap-authoritative --no-interaction --no-progress --no-scripts
           mkdir "$fixture/site/wordpress/wp-content/plugins/bastion-security-wp"
-          cp -a bastion-security-wp.php composer.json composer.lock README.md src vendor \
+          cp -a cerrojo-security-toolkit.php composer.json composer.lock README.md src vendor \
             "$fixture/site/wordpress/wp-content/plugins/bastion-security-wp/"
           cp "$fixture/site/wordpress/wp-config-sample.php" "$fixture/site/wordpress/wp-config.php"
           sed -i \

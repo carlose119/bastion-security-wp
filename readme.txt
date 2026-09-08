@@ -3,7 +3,7 @@ Contributors: carlose119
 Tags: security, hardening, login security, security headers, rest api
 Requires at least: 6.8
 Tested up to: 7.1
-Stable tag: 0.2.1
+Stable tag: 0.2.2
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -67,6 +67,12 @@ A changed raw string is observed even when redaction or truncation makes the dis
 No. This version has no uninstall cleanup routine, so plugin-owned settings remain unless they are changed or removed separately.
 
 == Changelog ==
+
+= 0.2.2 =
+
+* Includes URL Change Alerts, which have been available on master since 0.2.1.
+* Sanitized nonce input, scoped enqueued admin CSS, and replaced URL parsing with wp_parse_url().
+* Renamed the plugin entrypoint and packaged plugin assets. Existing installations may need reactivation after the entrypoint rename.
 
 = 0.2.1 =
 

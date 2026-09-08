@@ -51,6 +51,12 @@ namespace {
             echo '<button type="submit">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</button>';
         }
     }
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string { return stripslashes($value); }
+    }
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+    }
 }
 
 namespace BastionSecurityWP\Tests\Unit {
@@ -111,6 +117,28 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('invalid_target', $redirects[1]);
             self::assertStringContainsString('invalid_group', $redirects[2]);
             self::assertStringContainsString('invalid_command', $redirects[3]);
+        }
+
+        public function testRequestBoundaryNormalizesStringNoncesAndRejectsMalformedNonceTypesWithoutMutation(): void
+        {
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $_POST = ['command' => 'enable', '_wpnonce' => 'valid\\<ignored>'];
+            $this->admin($baseline, $groups, $redirects)->handleRequest();
+            self::assertTrue($baseline);
+
+            $baseline = false;
+            $groups = [];
+            $redirects = [];
+            $verifiedActions = [];
+            $_POST = ['command' => 'enable', '_wpnonce' => ['valid']];
+            $this->admin($baseline, $groups, $redirects, verifiedActions: $verifiedActions)->handleRequest();
+            self::assertFalse($baseline);
+            self::assertSame([], $groups);
+            self::assertSame([], $verifiedActions);
+            self::assertStringContainsString('invalid_nonce', $redirects[0]);
+            unset($_POST);
         }
 
         public function testCapabilityAndNonceFailuresNeverMutate(): void
@@ -467,8 +495,10 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertStringContainsString('name="acknowledgement" value="1"', $html);
             self::assertStringNotContainsString('Enable all', $html);
             self::assertStringNotContainsString('<script', $html);
-            self::assertStringContainsString('@media (max-width: 782px)', $html);
-            self::assertStringContainsString('position: sticky', $html);
+            self::assertStringNotContainsString('<style', $html);
+            $styles = (string) file_get_contents(__DIR__ . '/../../assets/css/admin.css');
+            self::assertStringContainsString('@media (max-width: 782px)', $styles);
+            self::assertStringContainsString('position: sticky', $styles);
         }
 
         public function testHeaderNoticesUseAccurateNativeSeverities(): void
@@ -538,6 +568,7 @@ namespace BastionSecurityWP\Tests\Unit {
 
             self::assertStringContainsString("\\esc_html(\$definition['header']) . ': ' . \\esc_html(\$definition['value'])", $source);
             self::assertStringNotContainsString('<code>X-Content-Type-Options: nosniff</code>', $source);
+            self::assertStringNotContainsString('<style>', $source);
         }
 
         /** @return array<string, mixed> */

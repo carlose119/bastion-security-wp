@@ -1,0 +1,56 @@
+.bastion-security-dashboard .bastion-tab-introduction { max-width: 72ch; font-size: 14px; }
+.bastion-security-dashboard .bastion-summary-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; max-width: 900px; margin: 20px 0; }
+.bastion-security-dashboard .bastion-summary-card { padding: 18px 20px; border: 1px solid #c3c4c7; background: #fff; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04); }
+.bastion-security-dashboard .bastion-summary-card span,
+.bastion-security-dashboard .bastion-summary-card strong { display: block; }
+.bastion-security-dashboard .bastion-summary-card strong { margin-top: 8px; font-size: 28px; line-height: 1; }
+.bastion-security-dashboard .bastion-diagnostics { overflow: hidden; margin: 0 0 24px; border: 1px solid #c3c4c7; border-radius: 2px; background: #fff; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04); }
+.bastion-security-dashboard .bastion-diagnostic + .bastion-diagnostic { border-top: 1px solid #dcdcde; }
+.bastion-security-dashboard .bastion-diagnostic-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 16px 20px; cursor: pointer; list-style: none; }
+.bastion-security-dashboard .bastion-diagnostic-summary::-webkit-details-marker { display: none; }
+.bastion-security-dashboard .bastion-diagnostic-summary:focus-visible { outline: 2px solid #2271b1; outline-offset: -2px; }
+.bastion-security-dashboard .bastion-diagnostic-title { color: #1d2327; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.bastion-security-dashboard .bastion-diagnostic-badge { display: inline-block; padding: 2px 9px; border: 1px solid currentColor; border-radius: 12px; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
+.bastion-security-dashboard .bastion-diagnostic-badge--good { color: #008a20; }
+.bastion-security-dashboard .bastion-diagnostic-badge--recommended { color: #996800; }
+.bastion-security-dashboard .bastion-diagnostic-summary::after { width: 7px; height: 7px; border-right: 2px solid #50575e; border-bottom: 2px solid #50575e; content: ""; transform: rotate(45deg) translateY(-2px); }
+.bastion-security-dashboard .bastion-diagnostic[open] > .bastion-diagnostic-summary::after { transform: rotate(225deg) translate(-2px, -2px); }
+.bastion-security-dashboard .bastion-diagnostic-panel { padding: 4px 20px 20px; border-top: 1px solid #f0f0f1; color: #3c434a; }
+.bastion-security-dashboard .bastion-diagnostic-status { margin: 16px 0; }
+.bastion-security-dashboard .bastion-diagnostic-status-label { font-weight: 600; }
+.bastion-security-dashboard .bastion-diagnostic-description p,
+.bastion-security-dashboard .bastion-diagnostic-action p { max-width: 72ch; }
+.bastion-security-dashboard .bastion-diagnostic-action { margin-top: 16px; }
+.bastion-security-dashboard .bastion-login-protection,
+.bastion-security-dashboard .bastion-xmlrpc-pingback-protection,
+.bastion-security-dashboard .bastion-rest-route-controls,
+.bastion-security-dashboard .bastion-plugin-activity-alerts,
+.bastion-security-dashboard .bastion-administrator-account-alerts,
+.bastion-security-dashboard .bastion-critical-settings-alerts { margin-top: 28px; padding-top: 8px; border-top: 2px solid #c3c4c7; }
+.bastion-security-dashboard .bastion-login-reset { max-width: 72ch; margin-top: 20px; padding: 14px 16px; border-left: 4px solid #dba617; background: #fff; }
+
+.bastion-header-tool .bastion-header-batch fieldset {
+    margin: 16px 0;
+    padding: 12px 16px;
+    border: 1px solid #c3c4c7;
+    background: #fff;
+}
+.bastion-header-tool .bastion-header-batch legend { padding: 0 6px; font-weight: 600; }
+.bastion-header-tool .bastion-header-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; margin: 10px 0; }
+.bastion-header-tool .bastion-header-choice > span,
+.bastion-header-tool .bastion-header-choice code { display: block; }
+.bastion-header-tool .bastion-header-state { margin-left: 6px; color: #50575e; font-weight: 400; }
+.bastion-header-tool .bastion-header-batch-bar { position: sticky; bottom: 0; z-index: 2; padding: 12px; border: 1px solid #c3c4c7; background: #f6f7f7; }
+.bastion-header-tool .bastion-header-acknowledgement { display: block; margin: 16px 0; font-weight: 600; }
+.bastion-header-tool .bastion-header-group { margin: 16px 0; padding: 16px; border-left: 4px solid #72aee6; background: #fff; }
+.bastion-header-tool .bastion-header-danger { margin-top: 24px; padding: 16px; border: 1px solid #d63638; background: #fff; }
+
+@media (max-width: 782px) {
+    .bastion-security-dashboard .bastion-summary-cards { grid-template-columns: 1fr; gap: 10px; }
+    .bastion-security-dashboard .bastion-diagnostic-summary { grid-template-columns: minmax(0, 1fr) auto; padding: 14px 16px; }
+    .bastion-security-dashboard .bastion-diagnostic-badge { grid-column: 1; justify-self: start; }
+    .bastion-security-dashboard .bastion-diagnostic-summary::after { grid-column: 2; grid-row: 1 / span 2; }
+    .bastion-security-dashboard .bastion-diagnostic-panel { padding: 4px 16px 16px; }
+    .bastion-header-tool .bastion-header-batch-bar { position: static; }
+    .bastion-header-tool .bastion-header-batch-bar .button { display: block; width: 100%; margin: 8px 0; }
+}

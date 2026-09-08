@@ -6,6 +6,12 @@ namespace {
     if (! function_exists('__')) {
         function __(string $text, string $domain = 'default'): string { return $text; }
     }
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string { return stripslashes($value); }
+    }
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+    }
 }
 
 namespace BastionSecurityWP\Tests\Unit {
@@ -73,6 +79,23 @@ final class FileEditorAdminTest extends TestCase
         self::assertStringContainsString('bastion_notice=invalid_nonce', $redirects[0]);
         self::assertStringContainsString('bastion_notice=invalid_command', $redirects[1]);
         self::assertStringContainsString('bastion_notice=invalid_command', $redirects[2]);
+    }
+
+    public function testRequestBoundaryNormalizesStringNoncesAndRejectsMalformedNonceTypesWithoutMutation(): void
+    {
+        $stored = false;
+        $redirects = [];
+        $_POST = ['command' => 'enable', '_wpnonce' => 'valid\\<ignored>'];
+        $this->admin($stored, false, true, true, $redirects)->handleRequest();
+        self::assertTrue($stored);
+
+        $stored = false;
+        $redirects = [];
+        $_POST = ['command' => 'enable', '_wpnonce' => ['valid']];
+        $this->admin($stored, false, true, true, $redirects)->handleRequest();
+        self::assertFalse($stored);
+        self::assertStringContainsString('bastion_notice=invalid_nonce', $redirects[0]);
+        unset($_POST);
     }
 
     public function testNoticesUseAccurateNativeSeverities(): void

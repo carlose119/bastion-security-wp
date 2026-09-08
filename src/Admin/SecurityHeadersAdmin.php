@@ -152,8 +152,13 @@ final class SecurityHeadersAdmin
 
     public function handleRequest(): void
     {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Raw POST is handed to handle(), which verifies capability and the command-, target-, or selection-bound nonce before mutation.
-        $this->handle($_POST);
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- handle() verifies capability and the command-, target-, or selection-bound nonce before mutation.
+        $post = $_POST;
+        if (is_string($post['_wpnonce'] ?? null)) {
+            $post['_wpnonce'] = \sanitize_text_field(\wp_unslash($post['_wpnonce']));
+        }
+
+        $this->handle($post);
     }
 
     public function renderToolSection(string $notice = ''): void
@@ -187,7 +192,6 @@ final class SecurityHeadersAdmin
         echo '<li>' . \esc_html__('No deprecated headers.', 'cerrojo-security-toolkit') . '</li>';
         echo '</ul></div>';
         $this->renderDisableAllForm();
-        $this->renderStyles();
         echo '</section>';
     }
 
@@ -458,33 +462,6 @@ final class SecurityHeadersAdmin
             default => 'error',
         };
         echo '<div class="notice notice-' . \esc_attr($severity) . '"><p>' . \wp_kses_post($message) . '</p></div>';
-    }
-
-    private function renderStyles(): void
-    {
-        echo <<<'HTML'
-<style>
-.bastion-header-tool .bastion-header-batch fieldset {
-    margin: 16px 0;
-    padding: 12px 16px;
-    border: 1px solid #c3c4c7;
-    background: #fff;
-}
-.bastion-header-tool .bastion-header-batch legend { padding: 0 6px; font-weight: 600; }
-.bastion-header-tool .bastion-header-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; margin: 10px 0; }
-.bastion-header-tool .bastion-header-choice > span,
-.bastion-header-tool .bastion-header-choice code { display: block; }
-.bastion-header-tool .bastion-header-state { margin-left: 6px; color: #50575e; font-weight: 400; }
-.bastion-header-tool .bastion-header-batch-bar { position: sticky; bottom: 0; z-index: 2; padding: 12px; border: 1px solid #c3c4c7; background: #f6f7f7; }
-.bastion-header-tool .bastion-header-acknowledgement { display: block; margin: 16px 0; font-weight: 600; }
-.bastion-header-tool .bastion-header-group { margin: 16px 0; padding: 16px; border-left: 4px solid #72aee6; background: #fff; }
-.bastion-header-tool .bastion-header-danger { margin-top: 24px; padding: 16px; border: 1px solid #d63638; background: #fff; }
-@media (max-width: 782px) {
-    .bastion-header-tool .bastion-header-batch-bar { position: static; }
-    .bastion-header-tool .bastion-header-batch-bar .button { display: block; width: 100%; margin: 8px 0; }
-}
-</style>
-HTML;
     }
 
     private function isHstsReady(): bool

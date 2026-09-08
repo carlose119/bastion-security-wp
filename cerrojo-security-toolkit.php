@@ -3,7 +3,7 @@
  * Plugin Name:       Cerrojo Security Toolkit
  * Plugin URI:        https://github.com/carlose119/bastion-security-wp
  * Description:       Defense-in-depth security diagnostics and reversible hardening tools for WordPress.
- * Version:           0.2.1
+ * Version:           0.2.2
  * Requires at least: 6.8
  * Requires PHP:      8.1
  * Author:            Carlos Carrillo

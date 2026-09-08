@@ -251,7 +251,7 @@ define('WP_USE_THEMES', false);
 require $root . '/wp-load.php';
 
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
-foreach (['woocommerce/woocommerce.php', 'bastion-security-wp/bastion-security-wp.php'] as $plugin) {
+foreach (['woocommerce/woocommerce.php', 'bastion-security-wp/cerrojo-security-toolkit.php'] as $plugin) {
     check(is_plugin_active($plugin), 'Required plugin is not active: ' . $plugin);
 }
 wp_set_current_user(0);

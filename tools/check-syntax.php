@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$files = [$root . '/bastion-security-wp.php'];
+$files = [$root . '/cerrojo-security-toolkit.php'];
 
 foreach (['src', 'tests', 'tools'] as $directory) {
     $iterator = new RecursiveIteratorIterator(

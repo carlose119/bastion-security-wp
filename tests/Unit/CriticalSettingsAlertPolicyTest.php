@@ -85,6 +85,39 @@ final class CriticalSettingsAlertPolicyTest extends TestCase
         }
     }
 
+    public function testUrlDisplayUsesInjectedParserForMalformedRelativeAndCredentialUrls(): void
+    {
+        $parserCalls = [];
+        $harness = $this->policy(
+            ['schema_version' => 1, 'enabled' => true, 'recipients' => ['alerts@example.test']],
+            parseUrl: static function (string $url) use (&$parserCalls): array|false {
+                $parserCalls[] = $url;
+
+                return parse_url($url);
+            },
+        );
+
+        $harness['policy']->onOptionUpdated('relative/path', 'https://user:password@new.example.test:8443/path?token=new#fragment', 'home');
+        $harness['policy']->onOptionUpdated('https://old.example.test/path', 'https://example.test:invalid', 'home');
+
+        self::assertSame([
+            'relative/path',
+            'https://user:password@new.example.test:8443/path?token=new#fragment',
+            'https://example.test',
+            'https://old.example.test/path',
+            'https://example.test:invalid',
+            'https://example.test',
+        ], $parserCalls);
+        self::assertCount(2, $harness['mail']);
+        self::assertStringContainsString('Previous value: Unavailable', $harness['mail'][0][2]);
+        self::assertStringContainsString('New value: https://new.example.test:8443/path', $harness['mail'][0][2]);
+        self::assertStringContainsString('Previous value: https://old.example.test/path', $harness['mail'][1][2]);
+        self::assertStringContainsString('New value: Unavailable', $harness['mail'][1][2]);
+        foreach (['user:', 'password', 'token=', 'fragment'] as $secret) {
+            self::assertStringNotContainsString($secret, $harness['mail'][0][1] . $harness['mail'][0][2]);
+        }
+    }
+
     public function testChangedUrlStringsNotifyWhenOnlyRedactedOrTruncatedPartsDiffer(): void
     {
         $harness = $this->policy(['schema_version' => 1, 'enabled' => true, 'recipients' => ['alerts@example.test']]);
@@ -149,10 +182,13 @@ final class CriticalSettingsAlertPolicyTest extends TestCase
         }
 
         $reads = 0;
-        $unreadable = new CriticalSettingsAlertPolicy(static function () use (&$reads): never {
-            $reads++;
-            throw new RuntimeException('private option details');
-        });
+        $unreadable = new CriticalSettingsAlertPolicy(
+            readOption: static function () use (&$reads): never {
+                $reads++;
+                throw new RuntimeException('private option details');
+            },
+            parseUrl: static fn (string $url): array|false => parse_url($url),
+        );
         self::assertSame(['enabled' => false, 'recipients' => []], $unreadable->state());
         $unreadable->onOptionUpdated('https://old.example.test', 'https://new.example.test', 'home');
         self::assertSame(2, $reads);
@@ -198,6 +234,7 @@ final class CriticalSettingsAlertPolicyTest extends TestCase
             ?callable $validateEmail = null,
             ?callable $siteUrl = null,
             ?callable $timestamp = null,
+            ?callable $parseUrl = null,
     ): array {
         $state = ['option' => $option, 'writes' => 0, 'mail' => []];
         $policy = new CriticalSettingsAlertPolicy(
@@ -224,6 +261,7 @@ final class CriticalSettingsAlertPolicyTest extends TestCase
             static fn (): string => $siteName,
                 $siteUrl ?? static fn (): string => 'https://example.test',
                 $timestamp ?? static fn (): string => '2025-02-03 04:05:06 UTC',
+                $parseUrl ?? static fn (string $url): array|false => parse_url($url),
 
 
         );

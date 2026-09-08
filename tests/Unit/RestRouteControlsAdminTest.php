@@ -10,6 +10,12 @@ namespace {
     if (! function_exists('esc_url')) { function esc_url(string $v): string { return htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); } }
     if (! function_exists('wp_nonce_field')) { function wp_nonce_field(string $a): void { echo '<input name="_wpnonce" value="nonce-' . esc_attr($a) . '">'; } }
     if (! function_exists('submit_button')) { function submit_button(string $l, string $t = 'primary'): void { echo '<button type="submit" class="button button-' . esc_attr($t) . '">' . esc_html($l) . '</button>'; } }
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string { return stripslashes($value); }
+    }
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+    }
 }
 
 namespace BastionSecurityWP\Tests\Unit {
@@ -55,7 +61,24 @@ namespace BastionSecurityWP\Tests\Unit {
             self::assertSame([RestRouteControlsAdmin::nonceAction('clear')], $clear['nonceActions']);
         }
 
-        public function testSaveAcceptsOnlyCanonicalUniqueTokensFromCurrentOrPreviouslyStoredStaleRules(): void
+        public function testRequestBoundaryNormalizesStringNoncesAndRejectsMalformedNonceTypesWithoutMutation(): void
+    {
+        $harness = $this->harness([['method' => 'GET', 'route_pattern' => '/a']]);
+        $_POST = $this->post('clear', [], nonce: 'clear\\<ignored>');
+        $harness['admin']->handleRequest();
+        self::assertSame([], $harness['stored']['rules']);
+
+        $harness = $this->harness([['method' => 'GET', 'route_pattern' => '/a']]);
+        $_POST = $this->post('clear', [], nonce: 'clear');
+        $_POST['_wpnonce'] = ['clear'];
+        $harness['admin']->handleRequest();
+        self::assertSame([['method' => 'GET', 'route_pattern' => '/a']], $harness['stored']['rules']);
+        self::assertSame([], $harness['nonceActions']);
+        self::assertStringContainsString('invalid_nonce', $harness['redirects'][0]);
+        unset($_POST);
+    }
+
+    public function testSaveAcceptsOnlyCanonicalUniqueTokensFromCurrentOrPreviouslyStoredStaleRules(): void
         {
             $fresh = RestRouteCatalog::token('GET', '/wp/v2/posts/(?P<id>[\\d]+)');
             $stale = RestRouteCatalog::token('DELETE', '/gone/v1/item');

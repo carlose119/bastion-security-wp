@@ -27,6 +27,12 @@ namespace {
     if (! function_exists('submit_button')) {
         function submit_button(string $label): void { echo '<button type="submit">' . esc_html($label) . '</button>'; }
     }
+    if (! function_exists('wp_unslash')) {
+        function wp_unslash(string $value): string { return stripslashes($value); }
+    }
+    if (! function_exists('sanitize_text_field')) {
+        function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+    }
 }
 
 namespace BastionSecurityWP\Tests\Unit {
@@ -59,7 +65,23 @@ namespace BastionSecurityWP\Tests\Unit {
             }
         }
 
-        public function testSaveEnablesWithValidatedRecipientsAndUncheckedCheckboxDisablesWithoutReplacingRecipients(): void
+        public function testRequestBoundaryNormalizesStringNoncesAndRejectsMalformedNonceTypesWithoutMutation(): void
+    {
+        $harness = $this->admin();
+        $_POST = ['target' => 'plugin_activity_alerts', 'command' => 'save', '_wpnonce' => 'valid\\<ignored>', 'enabled' => '1', 'recipients' => 'alerts@example.test'];
+        $harness['admin']->handleRequest();
+        self::assertTrue($harness['option']['enabled']);
+
+        $harness = $this->admin();
+        $_POST = ['target' => 'plugin_activity_alerts', 'command' => 'save', '_wpnonce' => ['valid'], 'enabled' => '1', 'recipients' => 'alerts@example.test'];
+        $harness['admin']->handleRequest();
+        self::assertSame(['enabled' => false, 'recipients' => []], $harness['option']);
+        self::assertSame([], $harness['nonceActions']);
+        self::assertStringContainsString('invalid_nonce', $harness['redirects'][0]);
+        unset($_POST);
+    }
+
+    public function testSaveEnablesWithValidatedRecipientsAndUncheckedCheckboxDisablesWithoutReplacingRecipients(): void
         {
             $harness = $this->admin();
             $harness['admin']->handle([

@@ -121,8 +121,13 @@ final class RestRouteControlsAdmin
 
     public function handleRequest(): void
     {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Raw POST is handed to handle(), which verifies capability, target, command, and the operation-bound nonce before mutation.
-        $this->handle($_POST);
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- handle() verifies capability, target, command, and the operation-bound nonce before mutation.
+        $post = $_POST;
+        if (is_string($post['_wpnonce'] ?? null)) {
+            $post['_wpnonce'] = \sanitize_text_field(\wp_unslash($post['_wpnonce']));
+        }
+
+        $this->handle($post);
     }
 
     public function renderCatalog(string $notice = ''): void

@@ -12,7 +12,7 @@ final class WordPressOrgMetadataTest extends TestCase
 {
     private const EXPECTED_PLUGIN_NAME = 'Cerrojo Security Toolkit';
     private const EXPECTED_TEXT_DOMAIN = 'cerrojo-security-toolkit';
-    private const EXPECTED_VERSION = '0.2.1';
+    private const EXPECTED_VERSION = '0.2.2';
 
     public function testPublicPluginHeaderUsesWordPressOrgIdentity(): void
     {
@@ -86,13 +86,13 @@ final class WordPressOrgMetadataTest extends TestCase
 
         $fileEditorSource = (string) file_get_contents($this->root() . '/src/Admin/FileEditorAdmin.php');
         self::assertStringContainsString("PAGE_SLUG = 'bastion-security-wp'", $fileEditorSource);
-        self::assertStringContainsString('https://github.com/carlose119/bastion-security-wp', (string) file_get_contents($this->root() . '/bastion-security-wp.php'));
+        self::assertStringContainsString('https://github.com/carlose119/bastion-security-wp', (string) file_get_contents($this->root() . '/cerrojo-security-toolkit.php'));
     }
 
     /** @return array<string, string> */
     private function pluginHeaders(): array
     {
-        return $this->parseHeaders((string) file_get_contents($this->root() . '/bastion-security-wp.php'));
+        return $this->parseHeaders((string) file_get_contents($this->root() . '/cerrojo-security-toolkit.php'));
     }
 
     private function readme(): string
@@ -125,7 +125,7 @@ final class WordPressOrgMetadataTest extends TestCase
     /** @return list<string> */
     private function productionPhpFiles(): array
     {
-        $files = [$this->root() . '/bastion-security-wp.php'];
+        $files = [$this->root() . '/cerrojo-security-toolkit.php'];
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->root() . '/src'));
 
         foreach ($iterator as $item) {
