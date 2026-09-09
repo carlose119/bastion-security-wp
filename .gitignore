@@ -11,3 +11,13 @@ phpunit.xml
 Thumbs.db
 # Local Pi runtime state
 .atl/
+/.pi/
+
+# Local CodeGraph index
+/.codegraph/
+
+# Accidental Windows output file
+/NUL
+
+# Local SVN release staging
+/.svn-staging/

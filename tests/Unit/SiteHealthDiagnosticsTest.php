@@ -17,6 +17,7 @@ use BastionSecurityWP\Security\PluginActivityAlertPolicy;
 use BastionSecurityWP\Security\SecurityHeadersPolicy;
 use BastionSecurityWP\Security\XmlRpcPingbackPolicy;
 use BastionSecurityWP\SiteHealthDiagnostics;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -385,6 +386,36 @@ final class SiteHealthDiagnosticsTest extends TestCase
         self::assertStringNotContainsString('header_remove', $source . $xmlRpcSource);
         self::assertStringNotContainsString('send_headers', $source . $policySource . $xmlRpcSource);
         self::assertStringNotContainsString('switch_to_blog', $source . $xmlRpcSource);
+    }
+
+    #[DataProvider('runtimeBoundaryVersions')]
+    public function testRuntimeBoundaryVersionsUseTheDocumentedTarget(
+        string $wordpressVersion,
+        string $phpVersion,
+        string $expectedStatus,
+    ): void {
+        $this->values['wordpress_version'] = $wordpressVersion;
+        $this->values['php_version'] = $phpVersion;
+
+        $result = $this->diagnostics()->runtime();
+
+        self::assertSame($expectedStatus, $result['status']);
+        self::assertStringContainsString(
+            sprintf('WordPress %s and PHP %s', $wordpressVersion, $phpVersion),
+            $result['description'],
+        );
+    }
+
+    /** @return iterable<string, array{string, string, string}> */
+    public static function runtimeBoundaryVersions(): iterable
+    {
+        yield 'WordPress lower bound' => ['6.8', '8.4.1', 'good'];
+        yield 'WordPress below lower bound' => ['6.7', '8.4.1', 'recommended'];
+        yield 'WordPress 7.1 target' => ['7.1', '8.4.1', 'good'];
+        yield 'WordPress 7.1 patch target' => ['7.1.99', '8.4.1', 'good'];
+        yield 'WordPress upper exclusive bound' => ['7.2', '8.4.1', 'recommended'];
+        yield 'PHP upper supported patch' => ['7.1', '8.4.99', 'good'];
+        yield 'PHP upper exclusive bound' => ['7.1', '8.5', 'recommended'];
     }
 
     public function testUnsupportedAndHostileRuntimeValuesAreNotCountedAsGoodOrReflected(): void

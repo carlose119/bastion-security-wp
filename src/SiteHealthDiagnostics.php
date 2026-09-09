@@ -365,7 +365,7 @@ final class SiteHealthDiagnostics
             $wp = $this->safeVersion(($this->observe)('wordpress_version'));
             $php = $this->safeVersion(($this->observe)('php_version'));
             $target = $wp !== null && $php !== null
-                && version_compare($wp, '6.8', '>=') && version_compare($wp, '7.1', '<')
+                && version_compare($wp, '6.8', '>=') && version_compare($wp, '7.2', '<')
                 && version_compare($php, '8.1', '>=') && version_compare($php, '8.5', '<');
             $evidence = sprintf(
                 'Evidence: WordPress %s and PHP %s were observed.',
