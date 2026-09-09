@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title description">
+  <title id="title">Cerrojo shield logo proposal</title>
+  <desc id="description">A simple pale shield with a centered turquoise keyhole on a navy rounded square.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="42" fill="#071A2B"/>
+  <path fill="#DCEAE8" d="M128 34 C149 48 172 56 198 60 V111 C198 160 172 198 128 222 C84 198 58 160 58 111 V60 C84 56 107 48 128 34 Z"/>
+  <path fill="#22CDBE" d="M128 92 C117.5 92 109 100.5 109 111 C109 118 112.8 124.3 118.5 127.6 L113 157 C112.3 160.8 115.2 164 119 164 H137 C140.8 164 143.7 160.8 143 157 L137.5 127.6 C143.2 124.3 147 118 147 111 C147 100.5 138.5 92 128 92 Z"/>
+</svg>

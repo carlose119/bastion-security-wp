@@ -21,3 +21,7 @@ Thumbs.db
 
 # Local SVN release staging
 /.svn-staging/
+
+# Unused logo proposal and local review preview
+/branding/cerrojo-logo/
+/branding/cerrojo-shield-logo/preview.png
