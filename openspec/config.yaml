@@ -1,0 +1,46 @@
+project:
+  name: bastion-security-wp
+  product_name: Cerrojo Security Toolkit
+  type: wordpress-plugin
+  language: PHP 8.1+
+  wordpress_compatibility: "6.8 through 7.1"
+  description: "WordPress security posture diagnostics and reversible hardening tools."
+
+artifact_store: openspec
+strict_tdd: true
+delivery_strategy: ask-on-risk
+review_budget_lines: 400
+chain_strategy: deferred
+
+phase_rules:
+  init: "Inspect repository context and create only initialization metadata."
+  explore: "Preserve unresolved product decisions; do not implement."
+  plan: "Require explicit approval before implementation work."
+  apply: "Use test-first changes; implementation is approval-gated."
+  verify: "Run the relevant PHPUnit and static validation commands."
+
+feature_context:
+  selected: "Core-integrity checker"
+  scope: "Observation only; no repair or deletion."
+  execution: "Manual and scheduled; official WordPress.org checksum requests are allowed."
+  unresolved:
+    - schedule frequency
+    - retention
+    - notification recipients
+    - multisite scope
+    - exact comparison boundaries
+
+testing:
+  runner: PHPUnit 10.5
+  primary_command: composer test
+  full_validation_command: composer check
+  syntax_command: composer syntax
+  packaging_verification_command: composer package:verify
+  configuration: phpunit.xml.dist
+  test_suites:
+    - tests/Unit
+  ci_php_versions:
+    - "8.1"
+    - "8.2"
+    - "8.3"
+    - "8.4"
