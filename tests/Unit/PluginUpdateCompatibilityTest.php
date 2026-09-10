@@ -237,7 +237,7 @@ final class PluginUpdateCompatibilityTest extends TestCase
     {
         $readme = (string) file_get_contents(dirname(__DIR__, 2) . '/README.md');
 
-        self::assertStringContainsString('twelve Cerrojo diagnostics', $readme);
+        self::assertStringContainsString('thirteen Cerrojo diagnostics', $readme);
         self::assertStringContainsString('Declared requirements met', $readme);
         self::assertStringContainsString('Blocked by declared requirements', $readme);
         self::assertStringContainsString('Compatibility unknown', $readme);

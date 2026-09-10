@@ -8,7 +8,7 @@ Open **Tools > Cerrojo Security Toolkit** as an administrator with `manage_optio
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Summary counts, the twelve Cerrojo diagnostics, and a link to native WordPress Site Health. |
+| **Overview** | Summary counts, the thirteen Cerrojo diagnostics, and a link to native WordPress Site Health. |
 | **Hardening** | Six reversible tools: the WordPress file-editor lock, Login Protection, XML-RPC Pingback Protection, plugin activity email alerts, Administrator Account Alerts, and URL Change Alerts. |
 | **Security headers** | Baseline and optional policy state, selected batch actions, individual controls, coverage guidance, and rollback. |
 | **REST API** | Active registered route-template catalog, method checkboxes, selected/stale state, impact guidance, and clear-all rollback. |
@@ -17,7 +17,7 @@ Only the active tab is rendered. Unknown or malformed tab values fall back to **
 
 ## Safe activation path
 
-1. Review the twelve diagnostics on **Overview**.
+1. Review the thirteen diagnostics on **Overview**.
 2. Open **Security headers**, select the conservative baseline, and choose **Enable selected**.
 3. Verify final response headers and site behavior in browser developer tools and, when applicable, at the CDN edge.
 4. Select only the optional groups you intend to enable. One aggregate acknowledgement covers the selected high-impact groups; it is not required for the baseline or `legacy_cross_domain` alone.
@@ -25,7 +25,7 @@ Only the active tab is rendered. Unknown or malformed tab values fall back to **
 
 ## Current scope
 
-The plugin adds twelve deterministic direct tests to WordPress Site Health, in stable order:
+The plugin adds thirteen deterministic direct tests to WordPress Site Health, in stable order:
 
 1. HTTPS and admin transport posture.
 2. File editor posture.
@@ -39,8 +39,15 @@ The plugin adds twelve deterministic direct tests to WordPress Site Health, in s
 10. Runtime compatibility notice.
 11. Read-only pending plugin-update compatibility.
 12. Read-only REST surface inventory.
+13. Read-only debug-display configuration.
 
 The assessments remain request-local and fail open per check. WordPress has no unscored Site Health status, so unavailable or unsupported assessments use its supported `recommended` status rather than reporting a successful security observation. The Cerrojo dashboard presents the same results with Site Health-inspired, accessible `details`/`summary` markup and links to native WordPress Site Health for the full suite.
+
+## Debug-display configuration boundaries
+
+This read-only diagnostic evaluates `WP_DEBUG` and `WP_DEBUG_DISPLAY` using PHP truthiness (the string `'false'` is truthy; `'0'` is false). WordPress normally defines `WP_DEBUG` before plugins load; the diagnostic honors that value. Only when undefined, it models WordPress's default: enabled when `wp_get_development_mode()` returns a nonempty mode (`core`, `plugin`, `theme`, or `all`) or the environment is `development`, disabled otherwise. On older WordPress versions without that function, only the environment default applies. Undefined `WP_DEBUG_DISPLAY` defaults to true. If a required default cannot be observed, the result is **Not assessed**.
+
+Debug off or explicitly suppressed display is **Good** configuration posture; debug with enabled display is **Recommended**. With debug enabled, a null `WP_DEBUG_DISPLAY` leaves PHP `display_errors` in control and is **Not assessed**, never certified suppressed. Cerrojo intentionally does not inspect PHP configuration, logging, or actual error output. Observation failures also remain **Not assessed**. These results are not runtime proof: later changes and request-specific suppression are outside the assessment. There are no debug controls or configuration writes; remediation belongs to the site owner or host.
 
 ## Plugin update compatibility boundaries
 
@@ -288,7 +295,7 @@ For release validation and deployment, extract the production ZIP first. Run Wor
 - **Plugin activity email alerts:** open **Tools > Cerrojo Security Toolkit > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; already handed-off email cannot be recalled.
 - **Administrator Account Alerts:** open **Tools > Cerrojo Security Toolkit > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future attempts; it does not reverse account changes or recall handed-off email. Delete `bastion_security_wp_administrator_account_alerts` to remove this saved configuration.
 - **URL Change Alerts:** open **Tools > Cerrojo Security Toolkit > Hardening**, clear the enable checkbox, and save. Disabling preserves recipients and stops future mail attempts; it does not roll back a WordPress URL update or recall handed-off email. Delete `bastion_security_wp_critical_settings_alerts` to remove this saved configuration.
-- **Plugin:** deactivate Cerrojo to remove its twelve Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
+- **Plugin:** deactivate Cerrojo to remove its thirteen Site Health tests and future runtime enforcement and alert attempts. Plugin-owned configuration, metrics, and transient state remain in the database for later reactivation. Uninstall behavior likewise preserves this state because the plugin provides no uninstall cleanup routine.
 
 Cerrojo creates no cron, queue, audit-log, or filesystem state requiring cleanup. Login Protection transients are temporary and best-effort.
 

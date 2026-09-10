@@ -29,6 +29,8 @@ final class SiteHealthDiagnosticsTest extends TestCase
     protected function setUp(): void
     {
         $this->values = [
+            'wp_debug' => false,
+            'wp_debug_display' => true,
             'is_ssl' => true,
             'force_ssl_admin' => true,
             'disallow_file_edit' => true,
@@ -68,16 +70,17 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_runtime',
             'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
+            'bastion_security_wp_debug_display',
         ], array_keys($tests['direct']));
         self::assertSame('plugin_callback', $tests['async']['plugin_async']['test']);
-        self::assertCount(13, array_unique(array_keys($tests['direct'])));
+        self::assertCount(14, array_unique(array_keys($tests['direct'])));
     }
 
-    public function testSharedReportListContainsExactlyTwelveBastionDiagnosticsInStableOrder(): void
+    public function testSharedReportListContainsExactlyThirteenBastionDiagnosticsInStableOrder(): void
     {
         $results = $this->diagnostics()->reports();
 
-        self::assertCount(12, $results);
+        self::assertCount(13, $results);
         self::assertSame([
             'bastion_security_wp_transport',
             'bastion_security_wp_file_editor',
@@ -91,6 +94,7 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_runtime',
             'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
+            'bastion_security_wp_debug_display',
         ], array_column($results, 'test'));
     }
 
@@ -112,12 +116,141 @@ final class SiteHealthDiagnosticsTest extends TestCase
             'bastion_security_wp_runtime',
             'bastion_security_wp_plugin_update_compatibility',
             'bastion_security_wp_rest_surface_inventory',
+            'bastion_security_wp_debug_display',
         ], array_column($results, 'test'));
-        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended'], array_column($results, 'status'));
+        self::assertSame(['good', 'good', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'recommended', 'good', 'good', 'recommended', 'recommended', 'good'], array_column($results, 'status'));
         self::assertSame(['label', 'status', 'badge', 'description', 'actions', 'test'], array_keys($results[0]));
         self::assertSame(['label' => 'Cerrojo Security Toolkit', 'color' => 'blue'], $results[0]['badge']);
         self::assertStringContainsString('Ownership:', $results[0]['description']);
         self::assertStringContainsString('Remediation:', $results[0]['actions']);
+    }
+
+    #[DataProvider('debugDisplayValues')]
+    public function testDebugDisplayReportsConfigurationOnly(mixed $debug, mixed $display, string $status, bool $assessed): void
+    {
+        $keys = [];
+        $diagnostics = new SiteHealthDiagnostics(
+            static function (string $key) use ($debug, $display, &$keys): mixed {
+                $keys[] = $key;
+                return match ($key) {
+                    'wp_debug' => $debug,
+                    'wp_debug_display' => $display,
+                };
+            },
+        );
+
+        $result = $diagnostics->debugDisplay();
+
+        self::assertSame($status, $result['status']);
+        self::assertSame('bastion_security_wp_debug_display', $result['test']);
+        self::assertSame(! $assessed, str_contains($result['description'], 'Not assessed'));
+        if ($assessed) {
+            self::assertStringContainsString('configuration posture only', $result['description']);
+            self::assertStringContainsString('not runtime proof', $result['description']);
+        }
+        self::assertSame($debug === false || $debug === 0 || $debug === '0' ? ['wp_debug'] : ['wp_debug', 'wp_debug_display'], $keys);
+    }
+
+    /** @return iterable<string, array{mixed, mixed, string, bool}> */
+    public static function debugDisplayValues(): iterable
+    {
+        yield 'disabled' => [false, true, 'good', true];
+        yield 'visible' => [true, true, 'recommended', true];
+        yield 'suppressed' => [true, false, 'good', true];
+        yield 'zero debug' => [0, true, 'good', true];
+        yield 'string zero debug' => ['0', true, 'good', true];
+        yield 'string false is truthy' => ['false', 'false', 'recommended', true];
+        yield 'string zero display' => [true, '0', 'good', true];
+        yield 'empty display' => [true, '', 'good', true];
+        yield 'null defers to PHP' => [true, null, 'recommended', false];
+        yield 'unknown display' => [true, new \stdClass(), 'recommended', false];
+    }
+
+    public function testDebugObservationFailureDoesNotLeakOrCertifyGood(): void
+    {
+        $diagnostics = new SiteHealthDiagnostics(static function (string $key): never {
+            throw new RuntimeException('private-observation');
+        });
+        $result = $diagnostics->debugDisplay();
+        self::assertSame('recommended', $result['status']);
+        self::assertStringContainsString('Not assessed', $result['description']);
+        self::assertStringNotContainsString('private-observation', serialize($result));
+    }
+
+    public function testUndefinedDisplayConstantUsesWordPressTrueDefault(): void
+    {
+        self::assertFalse(defined('WP_DEBUG_DISPLAY'));
+        $observe = new \ReflectionMethod(SiteHealthDiagnostics::class, 'observe');
+        $observe->setAccessible(true);
+        self::assertTrue($observe->invoke(null, 'wp_debug_display'));
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[DataProvider('nativeDebugConstants')]
+    public function testNativeObserverPreservesConstantDefaultsAndCoercion(mixed $debug, bool $defineDisplay, mixed $display, string $status): void
+    {
+        define('WP_DEBUG', $debug);
+        if ($defineDisplay) {
+            define('WP_DEBUG_DISPLAY', $display);
+        }
+        $result = (new SiteHealthDiagnostics())->debugDisplay();
+        self::assertSame($status, $result['status']);
+        self::assertSame($defineDisplay && $display === null && (bool) $debug, str_contains($result['description'], 'Not assessed'));
+    }
+
+    /** @return iterable<string, array{mixed, bool, mixed, string}> */
+    public static function nativeDebugConstants(): iterable
+    {
+        yield 'undefined display defaults on' => [true, false, null, 'recommended'];
+        yield 'defined null display stays unknown' => [true, true, null, 'recommended'];
+        yield 'defined false display' => [true, true, false, 'good'];
+        yield 'defined null debug coerces off' => [null, false, null, 'good'];
+        yield 'defined string false debug coerces on' => ['false', false, null, 'recommended'];
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[DataProvider('wordpressEnvironmentDefaults')]
+    public function testUndefinedDebugUsesWordPressEnvironmentDefault(string $environment, string $status, ?string $developmentMode = null): void
+    {
+        self::assertFalse(defined('WP_DEBUG'));
+        self::assertFalse(defined('WP_DEBUG_DISPLAY'));
+        self::assertFalse(function_exists('wp_get_environment_type'));
+        self::assertFalse(function_exists('wp_get_development_mode'));
+        if ($developmentMode !== null) {
+            $GLOBALS['bastion_test_development_mode'] = $developmentMode;
+            eval('function wp_get_development_mode(): string { return $GLOBALS["bastion_test_development_mode"]; }');
+        }
+        $GLOBALS['bastion_test_environment_type'] = $environment;
+        // A fixed global function fixture, confined to this isolated PHP process.
+        eval('function wp_get_environment_type(): string { return $GLOBALS["bastion_test_environment_type"]; }');
+
+        $result = (new SiteHealthDiagnostics())->debugDisplay();
+
+        self::assertSame($status, $result['status']);
+        self::assertStringNotContainsString('Not assessed', $result['description']);
+    }
+
+    /** @return iterable<string, array{string, string, ?string}> */
+    public static function wordpressEnvironmentDefaults(): iterable
+    {
+        yield 'older WordPress development' => ['development', 'recommended', null];
+        yield 'older WordPress production' => ['production', 'good', null];
+        yield 'older WordPress staging' => ['staging', 'good', null];
+        yield 'empty mode production' => ['production', 'good', ''];
+        yield 'empty mode development' => ['development', 'recommended', ''];
+        yield 'plugin mode production' => ['production', 'recommended', 'plugin'];
+        yield 'theme mode production' => ['production', 'recommended', 'theme'];
+        yield 'core mode production' => ['production', 'recommended', 'core'];
+        yield 'all mode production' => ['production', 'recommended', 'all'];
+    }
+
+    public function testUndefinedDebugWithoutWordPressEnvironmentIsNotAssessed(): void
+    {
+        self::assertFalse(defined('WP_DEBUG'));
+        self::assertFalse(function_exists('wp_get_environment_type'));
+        $result = (new SiteHealthDiagnostics())->debugDisplay();
+        self::assertSame('recommended', $result['status']);
+        self::assertStringContainsString('Not assessed', $result['description']);
     }
 
     public function testFileEditorAndFileModificationSemanticsRemainSeparate(): void

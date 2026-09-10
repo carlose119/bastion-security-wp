@@ -113,6 +113,10 @@ final class SiteHealthDiagnostics
                 'label' => 'Cerrojo: REST surface inventory',
                 'test' => $this->restInventory->report(...),
             ],
+            'bastion_security_wp_debug_display' => [
+                'label' => 'Cerrojo: Debug display configuration',
+                'test' => $this->debugDisplay(...),
+            ],
         ];
     }
 
@@ -395,11 +399,60 @@ final class SiteHealthDiagnostics
         }
     }
 
+    /** @return array<string, mixed> */
+    public function debugDisplay(): array
+    {
+        $label = 'Cerrojo: Debug display configuration';
+        try {
+            $debug = ($this->observe)('wp_debug');
+            if (! is_scalar($debug)) {
+                return $this->notAssessed($label);
+            }
+
+            $visible = false;
+            $evidence = 'Evidence: WP_DEBUG is disabled.';
+            if ((bool) $debug) {
+                $display = ($this->observe)('wp_debug_display');
+                if ($display === null) {
+                    return $this->result(
+                        DiagnosticStatus::Recommended,
+                        $label,
+                        'Evidence: WP_DEBUG is enabled; WP_DEBUG_DISPLAY is null and defers to PHP display_errors.',
+                        'Meaning: Not assessed. These constants do not establish whether display is suppressed; this is not runtime proof.',
+                        'Remediation: The site owner or hosting administrator should review PHP display_errors and WordPress debug configuration outside Cerrojo.',
+                    );
+                }
+                if (! is_scalar($display)) {
+                    return $this->notAssessed($label);
+                }
+                $visible = (bool) $display;
+                $evidence = 'Evidence: WP_DEBUG is enabled; WP_DEBUG_DISPLAY is ' . ($visible ? 'enabled.' : 'disabled.');
+            }
+
+            return $this->result(
+                $visible ? DiagnosticStatus::Recommended : DiagnosticStatus::Good,
+                $label,
+                $evidence,
+                'Meaning: This is configuration posture only, not runtime proof. Debugging can expose error details when display is enabled. Later runtime changes and request-specific suppression are not evaluated.',
+                $visible
+                    ? 'Remediation: The site owner should disable public debug display in WordPress configuration; Cerrojo does not change configuration.'
+                    : 'Remediation: Retain the intended debug configuration and verify public error handling independently; Cerrojo does not change configuration.',
+            );
+        } catch (Throwable) {
+            return $this->notAssessed($label);
+        }
+    }
+
     private static function observe(string $key): mixed
     {
         global $wp_version;
 
         return match ($key) {
+            'wp_debug' => defined('WP_DEBUG') ? (bool) constant('WP_DEBUG') : (
+                (function_exists('wp_get_development_mode') && (bool) \wp_get_development_mode())
+                || \wp_get_environment_type() === 'development'
+            ),
+            'wp_debug_display' => defined('WP_DEBUG_DISPLAY') ? constant('WP_DEBUG_DISPLAY') : true,
             'is_ssl' => \is_ssl(),
             'force_ssl_admin' => defined('FORCE_SSL_ADMIN') && (bool) constant('FORCE_SSL_ADMIN'),
             'disallow_file_edit' => defined('DISALLOW_FILE_EDIT') && (bool) constant('DISALLOW_FILE_EDIT'),
@@ -445,6 +498,7 @@ final class SiteHealthDiagnostics
                 'Cerrojo: Administrator account alerts' => 'administrator_account_alerts',
                 'Cerrojo: Security header preset' => 'security_headers',
                 'Cerrojo: File modification posture' => 'file_modifications',
+                'Cerrojo: Debug display configuration' => 'debug_display',
                 default => 'runtime',
             },
         ];
